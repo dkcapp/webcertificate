@@ -1,0 +1,13 @@
+# ห้าม commit ไฟล์ที่มี credentials
+# database/config.php
+
+# ไฟล์ระบบ Windows
+Thumbs.db
+desktop.ini
+
+# ไฟล์ editor
+.vscode/
+.idea/
+
+# Log files
+*.log

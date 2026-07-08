@@ -1,0 +1,3332 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ระบบออกใบประกาศนียบัตร — ศูนย์อบรมคอมพิวเตอร์ วัดพระธรรมกาย</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --white: #ffffff;
+        --bg: #f4f8ff;
+        --blue: #2563eb;
+        --blue-mid: #3b82f6;
+        --blue-light: #dbeafe;
+        --blue-xlight: #eff6ff;
+        --navy: #1e3a5f;
+        --text: #1e293b;
+        --text2: #475569;
+        --text3: #94a3b8;
+        --border: #e2eaf4;
+        --border2: #cbd5e1;
+        --red: #ef4444;
+        --green: #10b981;
+        --shadow-sm:
+          0 1px 3px rgba(37, 99, 235, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow:
+          0 4px 16px rgba(37, 99, 235, 0.1), 0 1px 4px rgba(0, 0, 0, 0.06);
+        --shadow-lg:
+          0 12px 40px rgba(37, 99, 235, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08);
+        --r: 10px;
+        --r-lg: 14px;
+      }
+
+      html {
+        font-size: 15px;
+        line-height: 1.6;
+      }
+
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        font-family: "Prompt", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .site-header {
+        background: var(--white);
+        border-bottom: 2px solid var(--border);
+        position: sticky;
+        top: 0;
+        z-index: 200;
+        height: 72px;
+        min-height: 72px;
+        display: flex;
+        align-items: center;
+        padding: 0 2rem;
+        gap: 1rem;
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+        flex-shrink: 0;
+      }
+
+      .header-logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+      }
+
+      .header-logo-mark {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+
+      .header-org {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+      }
+
+      .header-org-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--navy);
+        line-height: 1.2;
+      }
+
+      .header-org-sub {
+        font-size: 11px;
+        color: var(--text3);
+        letter-spacing: 0.02em;
+      }
+
+      .header-spacer {
+        flex: 1;
+      }
+
+      .admin-tab-strip {
+        display: none;
+        align-items: center;
+        gap: 4px;
+        border-left: 1px solid var(--border);
+        padding-left: 12px;
+        margin-left: 4px;
+      }
+
+      .admin-tab-strip.visible {
+        display: flex;
+      }
+
+      .atab {
+        padding: 5px 14px;
+        border-radius: 20px;
+        border: 1px solid transparent;
+        font-family: "Prompt", sans-serif;
+        font-size: 12.5px;
+        cursor: pointer;
+        background: transparent;
+        color: var(--text2);
+        transition: all 0.15s;
+      }
+
+      .atab:hover {
+        background: var(--bg);
+        color: var(--blue);
+      }
+
+      .atab.active {
+        background: var(--blue-light);
+        border-color: rgba(37, 99, 235, 0.25);
+        color: var(--blue);
+        font-weight: 500;
+      }
+
+      .atab svg {
+        width: 12px;
+        height: 12px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        vertical-align: -1px;
+        margin-right: 4px;
+      }
+
+      .app-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+
+      #view-download {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+      }
+
+      #admin-data-view {
+        display: none;
+        flex: 1;
+        flex-direction: row;
+        min-height: 0;
+      }
+
+      #admin-data-view.visible {
+        display: flex;
+      }
+
+      .sidebar {
+        width: 300px;
+        min-width: 300px;
+        background: var(--white);
+        border-right: 1px solid var(--border);
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.1rem;
+        overflow-y: auto;
+        flex-shrink: 0;
+      }
+
+      @media (max-width: 767px) {
+        #view-download {
+          flex-direction: column;
+        }
+
+        .sidebar {
+          width: 100%;
+          min-width: 0;
+          border-right: none;
+          border-bottom: 1px solid var(--border);
+        }
+      }
+
+      .sidebar-section-title {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text3);
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .sidebar-section-title::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+      }
+
+      .status-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text3);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--r);
+        padding: 8px 12px;
+      }
+
+      .status-bar svg {
+        width: 13px;
+        height: 13px;
+        flex-shrink: 0;
+      }
+
+      .status-bar.loading svg {
+        animation: spin 1s linear infinite;
+        stroke: var(--text3);
+        fill: none;
+        stroke-width: 2;
+      }
+
+      .status-bar.ok {
+        background: #f0fdf4;
+        border-color: #bbf7d0;
+        color: #15803d;
+      }
+
+      .status-bar.ok svg {
+        stroke: #15803d;
+        fill: none;
+        stroke-width: 2.5;
+      }
+
+      .status-bar.error {
+        background: #fef2f2;
+        border-color: #fecaca;
+        color: #dc2626;
+      }
+
+      .status-bar.error svg {
+        stroke: #dc2626;
+        fill: none;
+        stroke-width: 2;
+      }
+
+      @keyframes spin {
+        from {
+          transform: rotate(0);
+        }
+
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .field label {
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--navy);
+        letter-spacing: 0.04em;
+      }
+
+      .dropdown-wrap {
+        position: relative;
+      }
+
+      .dropdown-box {
+        width: 100%;
+        background: var(--white);
+        border: 1.5px solid var(--border);
+        border-radius: var(--r);
+        cursor: pointer;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+        user-select: none;
+      }
+
+      .dropdown-box.disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+
+      .dropdown-box.open {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+        border-radius: var(--r) var(--r) 0 0;
+      }
+
+      .dropdown-box:hover:not(.disabled):not(.open) {
+        border-color: var(--border2);
+      }
+
+      .dropdown-selected {
+        padding: 9px 12px;
+        font-size: 13.5px;
+        color: var(--text3);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .dropdown-selected.chosen {
+        color: var(--text);
+      }
+
+      .dropdown-selected .dd-label {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .dd-arrow {
+        width: 16px;
+        height: 16px;
+        border: none;
+        background: none;
+        padding: 0;
+        flex-shrink: 0;
+        transition: transform 0.2s;
+      }
+
+      .dropdown-box.open .dd-arrow {
+        transform: rotate(180deg);
+      }
+
+      .dd-arrow svg {
+        width: 14px;
+        height: 14px;
+        stroke: var(--text3);
+        fill: none;
+        stroke-width: 2.5;
+        display: block;
+      }
+
+      .dropdown-panel {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: var(--white);
+        border: 1.5px solid var(--blue);
+        border-top: none;
+        border-radius: 0 0 var(--r) var(--r);
+        z-index: 150;
+        max-height: 240px;
+        overflow: hidden;
+        flex-direction: column;
+        box-shadow: var(--shadow);
+      }
+
+      .dropdown-panel.open {
+        display: flex;
+      }
+
+      .dropdown-search {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+
+      .dropdown-search input {
+        width: 100%;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 7px;
+        padding: 6px 10px;
+        font-size: 13px;
+        font-family: "Prompt", sans-serif;
+        color: var(--text);
+        outline: none;
+        transition: border-color 0.15s;
+      }
+
+      .dropdown-search input:focus {
+        border-color: var(--blue);
+      }
+
+      .dropdown-search input::placeholder {
+        color: var(--text3);
+      }
+
+      .dropdown-list {
+        overflow-y: auto;
+        flex: 1;
+      }
+
+      .dropdown-list::-webkit-scrollbar {
+        width: 4px;
+      }
+
+      .dropdown-list::-webkit-scrollbar-thumb {
+        background: var(--border2);
+        border-radius: 2px;
+      }
+
+      .dropdown-item {
+        padding: 9px 13px;
+        font-size: 13px;
+        color: var(--text);
+        cursor: pointer;
+        border-bottom: 1px solid var(--bg);
+        transition: background 0.1s;
+      }
+
+      .dropdown-item:hover {
+        background: var(--blue-xlight);
+      }
+
+      .dropdown-item.active {
+        background: var(--blue-light);
+        color: var(--blue);
+        font-weight: 600;
+      }
+
+      .dropdown-item.empty {
+        color: var(--text3);
+        font-style: italic;
+        cursor: default;
+      }
+
+      .dropdown-item:last-child {
+        border-bottom: none;
+      }
+
+      .name-count {
+        font-size: 11px;
+        color: var(--text3);
+        text-align: right;
+        margin-top: 2px;
+      }
+
+      .divider {
+        height: 1px;
+        background: var(--border);
+      }
+
+      .btn-download {
+        width: 100%;
+        padding: 11px 16px;
+        background: var(--blue);
+        border: none;
+        border-radius: var(--r);
+        font-family: "Prompt", sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        color: #fff;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        transition:
+          background 0.15s,
+          transform 0.1s,
+          box-shadow 0.15s;
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+      }
+
+      .btn-download svg {
+        width: 15px;
+        height: 15px;
+        stroke: #fff;
+        fill: none;
+        stroke-width: 2;
+        flex-shrink: 0;
+      }
+
+      .btn-download:hover:not(:disabled) {
+        background: #1d4ed8;
+        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+      }
+
+      .btn-download:active:not(:disabled) {
+        transform: scale(0.98);
+      }
+
+      .btn-download:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+
+      .tip {
+        font-size: 11.5px;
+        color: var(--text3);
+        text-align: center;
+        line-height: 1.7;
+      }
+
+      .slider-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .slider-row {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .slider-row label {
+        font-size: 11px;
+        color: var(--text3);
+        font-weight: 500;
+      }
+
+      .slider-inner {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .slider-inner input[type="range"] {
+        flex: 1;
+        height: 3px;
+        accent-color: var(--blue);
+        cursor: pointer;
+        background: var(--border);
+        border-radius: 2px;
+        outline: none;
+        border: none;
+      }
+
+      .slider-val {
+        font-size: 11.5px;
+        color: var(--blue);
+        font-weight: 600;
+        min-width: 34px;
+        text-align: right;
+      }
+
+      .preview-area {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        background: var(--bg);
+        align-self: stretch;
+        min-height: 0;
+      }
+
+      .preview-wrapper {
+        width: 100%;
+        max-width: 860px;
+      }
+
+      .preview-eyebrow {
+        font-size: 11px;
+        color: var(--text3);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .preview-pulse {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--green);
+        flex-shrink: 0;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+
+        50% {
+          opacity: 0.35;
+        }
+      }
+
+      #cert-empty {
+        width: 100%;
+        aspect-ratio: 16/9;
+        min-height: 200px;
+        border-radius: var(--r-lg);
+        border: 2px dashed var(--border2);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        color: var(--text3);
+        background: var(--white);
+      }
+
+      #cert-empty .ce-icon {
+        width: 52px;
+        height: 52px;
+        background: var(--blue-xlight);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #cert-empty .ce-icon svg {
+        width: 24px;
+        height: 24px;
+        stroke: var(--blue-mid);
+        fill: none;
+        stroke-width: 1.5;
+      }
+
+      #cert-empty p {
+        font-size: 14px;
+        color: var(--text3);
+      }
+
+      #cert-empty small {
+        font-size: 12px;
+        color: var(--text3);
+        opacity: 0.7;
+      }
+
+      #cert-container {
+        display: none;
+        position: relative;
+        width: 100%;
+        border-radius: var(--r-lg);
+        overflow: hidden;
+        box-shadow: var(--shadow-lg);
+        container-type: inline-size;
+      }
+
+      #cert-bg {
+        position: relative;
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      #cert-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      .cert-course-area {
+        position: absolute;
+        top: 43%;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        width: 80%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .cert-name-area {
+        position: absolute;
+        bottom: 35.5%;
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+        width: 80%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .cert-desc-area {
+        position: absolute;
+        bottom: 21%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 80%;
+        text-align: center;
+      }
+
+      .cert-course-text {
+        font-family: "Sarabun", sans-serif;
+        font-size: clamp(8px, 3.5cqw, 36px);
+        font-weight: 700;
+        color: #000;
+      }
+
+      .cert-name-text {
+        font-family: "Sarabun", sans-serif;
+        font-size: clamp(8px, 3cqw, 32px);
+        font-weight: 700;
+        color: #000;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+
+      .cert-name-text.placeholder-text {
+        opacity: 0.3;
+        font-style: italic;
+      }
+
+      .cert-desc-text {
+        font-family: "Sarabun", sans-serif;
+        font-size: clamp(6px, 1.8cqw, 18px);
+        color: #333;
+        line-height: 1.6;
+      }
+
+      .cert-qr-area {
+        position: absolute;
+        bottom: 5%;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 9%;
+        display: none;
+      }
+
+      .cert-qr-area img,
+      .cert-qr-area canvas {
+        width: 100%;
+        height: auto;
+        display: block;
+      }
+
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.5);
+        backdrop-filter: blur(4px);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal-overlay.open {
+        display: flex;
+      }
+
+      .modal-box {
+        background: var(--white);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: 2rem;
+        width: 340px;
+        max-width: 92vw;
+        box-shadow: var(--shadow-lg);
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .modal-icon {
+        width: 44px;
+        height: 44px;
+        background: var(--blue-xlight);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-bottom: 2px;
+      }
+
+      .modal-icon svg {
+        width: 20px;
+        height: 20px;
+        stroke: var(--blue);
+        fill: none;
+        stroke-width: 2;
+      }
+
+      .modal-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--navy);
+      }
+
+      .modal-sub {
+        font-size: 12.5px;
+        color: var(--text3);
+        margin-top: 2px;
+      }
+
+      .modal-field label {
+        display: block;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--text2);
+        margin-bottom: 5px;
+      }
+
+      .modal-field input {
+        width: 100%;
+        background: var(--bg);
+        border: 1.5px solid var(--border);
+        border-radius: var(--r);
+        padding: 9px 13px;
+        font-size: 14px;
+        font-family: "Sarabun", sans-serif;
+        color: var(--text);
+        outline: none;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+      }
+
+      .modal-field input:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      }
+
+      .modal-error {
+        font-size: 12px;
+        color: var(--red);
+        min-height: 16px;
+        padding: 0 2px;
+      }
+
+      .btn-login {
+        width: 100%;
+        padding: 10px;
+        background: var(--blue);
+        border: none;
+        border-radius: var(--r);
+        font-family: "Prompt", sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        color: #fff;
+        cursor: pointer;
+        transition: background 0.15s;
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
+      }
+
+      .btn-login:hover {
+        background: #1d4ed8;
+      }
+
+      .btn-login:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .btn-modal-cancel {
+        width: 100%;
+        padding: 9px;
+        background: transparent;
+        border: 1.5px solid var(--border);
+        border-radius: var(--r);
+        font-size: 13.5px;
+        color: var(--text2);
+        cursor: pointer;
+        font-family: "Sarabun", sans-serif;
+        transition: border-color 0.15s;
+      }
+
+      .btn-modal-cancel:hover {
+        border-color: var(--border2);
+      }
+
+      .admin-sidebar {
+        width: 220px;
+        min-width: 220px;
+        background: var(--white);
+        border-right: 1px solid var(--border);
+        padding: 1.2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+        overflow-y: auto;
+      }
+
+      .admin-sidebar-title {
+        font-size: 10.5px;
+        font-weight: 600;
+        color: var(--text3);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 0.5rem 0 0.4rem;
+        border-bottom: 1px solid var(--border);
+        margin-bottom: 4px;
+      }
+
+      .admin-nav-btn {
+        width: 100%;
+        padding: 8px 12px;
+        background: transparent;
+        border: none;
+        border-radius: var(--r);
+        color: var(--text2);
+        font-family: "Prompt", sans-serif;
+        font-size: 13.5px;
+        text-align: left;
+        cursor: pointer;
+        transition: all 0.12s;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .admin-nav-btn svg {
+        width: 14px;
+        height: 14px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        flex-shrink: 0;
+      }
+
+      .admin-nav-btn:hover {
+        background: var(--blue-xlight);
+        color: var(--blue);
+      }
+
+      .admin-nav-btn.active {
+        background: var(--blue-light);
+        color: var(--blue);
+        font-weight: 600;
+      }
+
+      .admin-content {
+        flex: 1;
+        padding: 1.5rem;
+        overflow-y: auto;
+        background: var(--bg);
+      }
+
+      .admin-page-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 1.2rem;
+      }
+
+      .admin-page-title h2 {
+        font-family: "Prompt", sans-serif;
+        font-size: 17px;
+        font-weight: 600;
+        color: var(--navy);
+      }
+
+      .badge-count {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 0px;
+        background: transparent;
+        border-radius: 0;
+        font-size: 13px;
+        color: var(--text);
+        font-weight: 400;
+      }
+
+      .admin-toolbar {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .admin-search {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--white);
+        border: 1.5px solid var(--border);
+        border-radius: var(--r);
+        padding: 7px 12px;
+        flex: 1;
+        max-width: 300px;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+      }
+
+      .admin-search:focus-within {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      }
+
+      .admin-search svg {
+        width: 13px;
+        height: 13px;
+        stroke: var(--text3);
+        fill: none;
+        stroke-width: 2;
+        flex-shrink: 0;
+      }
+
+      .admin-search input {
+        border: none;
+        background: transparent;
+        outline: none;
+        font-size: 13px;
+        font-family: "Prompt", sans-serif;
+        color: var(--text);
+        width: 100%;
+      }
+
+      .admin-search input::placeholder {
+        color: var(--text3);
+      }
+
+      .year-filter-select {
+        padding: 7px 30px 7px 12px;
+        border-radius: var(--r);
+        border: 1.5px solid var(--border);
+        background: var(--white)
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")
+          no-repeat right 10px center;
+        background-size: 13px;
+        font-family: "Prompt", sans-serif;
+        font-size: 13px;
+        color: var(--text);
+        outline: none;
+        cursor: pointer;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+      }
+
+      .year-filter-select:hover {
+        border-color: var(--border2);
+      }
+
+      .year-filter-select:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      }
+
+      .year-filter-select:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background-color: var(--bg);
+      }
+
+      .btn-sm {
+        padding: 7px 14px;
+        border-radius: var(--r);
+        border: none;
+        font-size: 12.5px;
+        font-family: "Prompt", sans-serif;
+        cursor: pointer;
+        transition: all 0.12s;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+      }
+
+      .btn-sm svg {
+        width: 12px;
+        height: 12px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+      }
+
+      .btn-primary {
+        background: var(--blue);
+        color: #fff;
+        box-shadow: 0 1px 4px rgba(37, 99, 235, 0.2);
+      }
+
+      .btn-primary:hover {
+        background: #1d4ed8;
+      }
+
+      .btn-edit {
+        background: var(--blue-xlight);
+        color: var(--blue);
+        border: 1px solid var(--blue-light);
+      }
+
+      .btn-edit:hover {
+        background: var(--blue-light);
+      }
+
+      .btn-danger {
+        background: #fef2f2;
+        color: var(--red);
+        border: 1px solid #fecaca;
+      }
+
+      .btn-danger:hover {
+        background: #fee2e2;
+      }
+
+      .table-card {
+        background: var(--white);
+        border-radius: var(--r-lg);
+        border: 1px solid var(--border);
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+      }
+
+      .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+
+      .data-table thead tr {
+        background: var(--bg);
+      }
+
+      .data-table th {
+        padding: 10px 14px;
+        text-align: left;
+        font-size: 10.5px;
+        font-weight: 600;
+        color: var(--text3);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+      }
+
+      .data-table td {
+        padding: 10px 14px;
+        color: var(--text);
+        border-bottom: 1px solid var(--bg);
+        vertical-align: middle;
+      }
+
+      .data-table tr:last-child td {
+        border-bottom: none;
+      }
+
+      .data-table tbody tr:hover td {
+        background: var(--blue-xlight);
+      }
+
+      .data-table .actions {
+        display: flex;
+        gap: 5px;
+      }
+
+      .cell-muted {
+        color: var(--text3);
+        font-size: 12px;
+      }
+
+      .cell-id {
+        color: var(--text3);
+        font-size: 11px;
+        font-family: monospace;
+      }
+
+      .cell-truncate {
+        max-width: 180px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .cell-link a {
+        color: var(--blue);
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        text-decoration: none;
+      }
+
+      .cell-link a:hover {
+        text-decoration: underline;
+      }
+
+      .cell-link a svg {
+        width: 11px;
+        height: 11px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+      }
+
+      .pagination {
+        display: flex;
+        gap: 5px;
+        margin-top: 0.9rem;
+        align-items: center;
+      }
+
+      .page-btn {
+        padding: 5px 11px;
+        border-radius: 7px;
+        border: 1px solid var(--border);
+        background: var(--white);
+        color: var(--text2);
+        cursor: pointer;
+        font-size: 12px;
+        transition: all 0.12s;
+        display: flex;
+        align-items: center;
+      }
+
+      .page-btn svg {
+        width: 13px;
+        height: 13px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+      }
+
+      .page-btn.active {
+        background: var(--blue-light);
+        border-color: rgba(37, 99, 235, 0.3);
+        color: var(--blue);
+      }
+
+      .page-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+
+      .page-info {
+        font-size: 12px;
+        color: var(--text3);
+        padding: 0 6px;
+      }
+
+      #edit-modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.45);
+        backdrop-filter: blur(3px);
+        z-index: 1100;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #edit-modal-overlay.open {
+        display: flex;
+      }
+
+      .edit-modal-box {
+        background: var(--white);
+        border: 1px solid var(--border);
+        border-radius: var(--r-lg);
+        padding: 1.7rem;
+        width: 560px;
+        max-width: 94vw;
+        max-height: 85vh;
+        overflow-y: auto;
+        box-shadow: var(--shadow-lg);
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .edit-modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .edit-modal-title {
+        font-family: "Prompt", sans-serif;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--navy);
+      }
+
+      .edit-modal-close {
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+        border: none;
+        background: var(--bg);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.12s;
+      }
+
+      .edit-modal-close:hover {
+        background: var(--border);
+      }
+
+      .edit-modal-close svg {
+        width: 14px;
+        height: 14px;
+        stroke: var(--text2);
+        fill: none;
+        stroke-width: 2;
+      }
+
+      .edit-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .edit-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .edit-field.full {
+        grid-column: 1/-1;
+      }
+
+      .edit-field label {
+        font-size: 11px;
+        color: var(--text3);
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .edit-field input,
+      .edit-field select,
+      .edit-field textarea {
+        background: var(--bg);
+        border: 1.5px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 11px;
+        font-size: 13px;
+        font-family: "Prompt", sans-serif;
+        color: var(--text);
+        outline: none;
+        transition:
+          border-color 0.15s,
+          box-shadow 0.15s;
+      }
+
+      .edit-field input:focus,
+      .edit-field select:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+      }
+
+      .edit-modal-footer {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        border-top: 1px solid var(--border);
+        padding-top: 1rem;
+        margin-top: 0.3rem;
+      }
+
+      .btn-modal-save {
+        padding: 8px 20px;
+        border-radius: var(--r);
+        border: none;
+        background: var(--blue);
+        color: #fff;
+        font-family: "Prompt", sans-serif;
+        font-size: 13.5px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background 0.15s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 1px 4px rgba(37, 99, 235, 0.2);
+      }
+
+      .btn-modal-save svg {
+        width: 13px;
+        height: 13px;
+        stroke: #fff;
+        fill: none;
+        stroke-width: 2;
+      }
+
+      .btn-modal-save:hover {
+        background: #1d4ed8;
+      }
+
+      .btn-modal-save:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .btn-modal-back {
+        padding: 8px 16px;
+        border-radius: var(--r);
+        border: 1.5px solid var(--border);
+        background: transparent;
+        font-size: 13.5px;
+        color: var(--text2);
+        cursor: pointer;
+        font-family: "Sarabun", sans-serif;
+        transition: border-color 0.15s;
+      }
+
+      .btn-modal-back:hover {
+        border-color: var(--border2);
+      }
+
+      .site-footer-new {
+        background: #f8fbff;
+        color: #475569;
+        font-size: 12px;
+        padding: 1rem 2rem 0;
+        border-top: 2px solid #bfdbfe;
+        position: relative;
+      }
+
+      .footer-new-inner {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #dbeafe;
+        align-items: flex-start;
+      }
+
+      .fn-col {
+        flex: 1;
+        min-width: 200px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.6rem;
+      }
+
+      .fn-brand {
+        flex: 1.4;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 1rem;
+      }
+
+      .fn-logo {
+        width: 42px;
+        height: 42px;
+        object-fit: contain;
+        flex-shrink: 0;
+        border-radius: 10px;
+      }
+
+      .fn-name-en {
+        font-family: "Prompt", sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        color: #1e3a5f;
+        line-height: 1.3;
+      }
+
+      .fn-name-th {
+        font-size: 13px;
+        color: #475569;
+        margin-top: 2px;
+      }
+
+      .fn-dept {
+        font-size: 11.5px;
+        color: #64748b;
+        margin-top: 4px;
+        line-height: 1.6;
+      }
+
+      .fn-col-title {
+        font-family: "Prompt", sans-serif;
+        font-size: 10px;
+        font-weight: 600;
+        color: #1e3a5f;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin-bottom: 3px;
+      }
+
+      .fn-info-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 6px;
+        font-size: 11.5px;
+        color: #475569;
+        line-height: 1.4;
+      }
+
+      .fn-info-row svg {
+        width: 13px;
+        height: 13px;
+        stroke: var(--blue-mid);
+        fill: none;
+        stroke-width: 2;
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+
+      .fn-social-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 4px;
+      }
+
+      .fn-social-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+        background: #dbeafe;
+        border: 1px solid #bfdbfe;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s;
+        text-decoration: none;
+      }
+
+      .fn-social-btn:hover {
+        background: var(--blue);
+        border-color: var(--blue);
+      }
+
+      .fn-social-btn svg {
+        width: 14px;
+        height: 14px;
+        stroke: #2563eb;
+        fill: none;
+        stroke-width: 2;
+      }
+
+      .fn-social-btn:hover svg {
+        stroke: #fff;
+      }
+
+      .fn-qr-col {
+        align-items: flex-start;
+        min-width: 160px;
+        max-width: 160px;
+        justify-content: flex-start;
+        gap: 6px;
+      }
+
+      .fn-qr-img {
+        width: 65px;
+        height: 65px;
+        object-fit: contain;
+        border-radius: 6px;
+        background: #fff;
+        padding: 3px;
+      }
+
+      .fn-qr-label {
+        font-size: 11px;
+        color: #64748b;
+        margin-top: 4px;
+      }
+
+      .footer-bottom-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: nowrap;
+        padding: 0.4rem 0;
+        font-size: 11px;
+        color: #64748b;
+        gap: 8px;
+        min-height: 32px;
+      }
+
+      .footer-bottom-bar > span {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      .footer-admin-link {
+        background: none;
+        border: none;
+        color: #94a3b8;
+        font-size: 11.5px;
+        cursor: pointer;
+        font-family: "Prompt", sans-serif;
+        padding: 4px 0;
+        border-radius: 6px;
+        transition: color 0.15s;
+        flex-shrink: 0;
+        width: 160px;
+        text-align: left;
+      }
+
+      .footer-admin-link:hover {
+        color: #475569;
+      }
+    </style>
+  </head>
+
+  <body>
+    <header class="site-header">
+      <a class="header-logo" href="#">
+        <div
+          class="header-logo-mark"
+          style="background: none; padding: 0; overflow: hidden"
+        >
+          <img
+            src="logo.png"
+            alt="CTC Logo"
+            style="
+              width: 34px;
+              height: 34px;
+              object-fit: contain;
+              border-radius: 9px;
+            "
+          />
+        </div>
+        <div class="header-org">
+          <div class="header-org-name">ศูนย์อบรมคอมพิวเตอร์ วัดพระธรรมกาย</div>
+          <div class="header-org-sub">ระบบออกใบประกาศนียบัตร</div>
+        </div>
+      </a>
+      <div class="header-spacer"></div>
+      <div id="header-actions"></div>
+      <nav class="admin-tab-strip" id="admin-tab-strip">
+        <button
+          class="atab active"
+          id="tab-download"
+          onclick="switchTab('download')"
+        >
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+            />
+            <polyline points="14 2 14 8 20 8" /></svg
+          >ดาวน์โหลด
+        </button>
+        <button class="atab" id="tab-manage" onclick="switchTab('manage')">
+          <svg viewBox="0 0 24 24">
+            <ellipse cx="12" cy="5" rx="9" ry="3" />
+            <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></svg
+          >จัดการข้อมูล
+        </button>
+      </nav>
+    </header>
+
+    <div class="app-body">
+      <div id="view-download">
+        <aside class="sidebar">
+          <div id="api-status" class="status-bar loading">
+            <svg
+              viewBox="0 0 24 24"
+              style="stroke: var(--text3); fill: none; stroke-width: 2"
+            >
+              <path
+                d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
+              />
+            </svg>
+            <span>กำลังโหลดข้อมูล...</span>
+          </div>
+          <div class="sidebar-section-title">เลือกหลักสูตร</div>
+          <div class="field">
+            <label>ปีที่อบรม</label>
+            <div class="dropdown-wrap" id="year-dropdown-wrap">
+              <div
+                class="dropdown-box"
+                id="year-dropdown-box"
+                onclick="toggleYearDropdown()"
+              >
+                <div class="dropdown-selected" id="year-dropdown-selected">
+                  <span class="dd-label" id="year-dropdown-label"
+                    >— เลือกปี —</span
+                  >
+                  <span class="dd-arrow"
+                    ><svg viewBox="0 0 24 24">
+                      <polyline points="6 9 12 15 18 9" /></svg
+                  ></span>
+                </div>
+              </div>
+              <div class="dropdown-panel" id="year-dropdown-panel">
+                <div class="dropdown-list" id="year-dropdown-list"></div>
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label>หลักสูตร / คอร์สเรียน</label>
+            <div class="dropdown-wrap" id="course-dropdown-wrap">
+              <div
+                class="dropdown-box disabled"
+                id="course-dropdown-box"
+                onclick="toggleCourseDropdown()"
+              >
+                <div class="dropdown-selected" id="course-dropdown-selected">
+                  <span class="dd-label" id="course-dropdown-label"
+                    >— เลือกหลักสูตร —</span
+                  >
+                  <span class="dd-arrow"
+                    ><svg viewBox="0 0 24 24">
+                      <polyline points="6 9 12 15 18 9" /></svg
+                  ></span>
+                </div>
+              </div>
+              <div class="dropdown-panel" id="course-dropdown-panel">
+                <div class="dropdown-search">
+                  <input
+                    type="text"
+                    id="course-search-input"
+                    placeholder="ค้นหาหลักสูตร..."
+                    oninput="filterCourseDropdown()"
+                    autocomplete="off"
+                  />
+                </div>
+                <div class="dropdown-list" id="course-dropdown-list"></div>
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label>ชื่อผู้รับใบประกาศ</label>
+            <div class="dropdown-wrap">
+              <div
+                class="dropdown-box disabled"
+                id="name-dropdown-box"
+                onclick="toggleDropdown()"
+              >
+                <div class="dropdown-selected" id="name-dropdown-selected">
+                  <span class="dd-label" id="name-dropdown-label"
+                    >— เลือกคอร์สก่อน —</span
+                  >
+                  <span class="dd-arrow"
+                    ><svg viewBox="0 0 24 24">
+                      <polyline points="6 9 12 15 18 9" /></svg
+                  ></span>
+                </div>
+              </div>
+              <div class="dropdown-panel" id="name-dropdown-panel">
+                <div class="dropdown-search">
+                  <input
+                    type="text"
+                    id="name-search-input"
+                    placeholder="ค้นหาชื่อ..."
+                    oninput="filterDropdown()"
+                    autocomplete="off"
+                  />
+                </div>
+                <div class="dropdown-list" id="name-dropdown-list"></div>
+              </div>
+            </div>
+            <div class="name-count" id="name-count"></div>
+          </div>
+          <input type="hidden" id="inp-name" />
+          <div class="divider"></div>
+          <button
+            class="btn-download"
+            id="btn-dl"
+            onclick="downloadCert()"
+            disabled
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            ดาวน์โหลดใบประกาศ (PNG)
+          </button>
+          <p class="tip">เลือกปี → หลักสูตร → ชื่อผู้รับ → ดาวน์โหลด</p>
+          <div class="divider"></div>
+          <div class="sidebar-section-title">ปรับตำแหน่งข้อความ</div>
+          <div class="slider-group">
+            <div class="slider-row">
+              <label>ชื่อคอร์ส (% จากบน)</label>
+              <div class="slider-inner">
+                <input
+                  type="range"
+                  id="sl-course"
+                  min="20"
+                  max="60"
+                  value="43"
+                  step="0.5"
+                  oninput="adjustPos()"
+                /><span class="slider-val" id="sl-course-val">43%</span>
+              </div>
+            </div>
+            <div class="slider-row">
+              <label>ชื่อผู้รับ (% จากล่าง)</label>
+              <div class="slider-inner">
+                <input
+                  type="range"
+                  id="sl-name"
+                  min="20"
+                  max="55"
+                  value="35.5"
+                  step="0.5"
+                  oninput="adjustPos()"
+                /><span class="slider-val" id="sl-name-val">35.5%</span>
+              </div>
+            </div>
+            <div class="slider-row">
+              <label>ข้อความด้านล่าง (% จากล่าง)</label>
+              <div class="slider-inner">
+                <input
+                  type="range"
+                  id="sl-desc"
+                  min="5"
+                  max="35"
+                  value="21"
+                  step="0.5"
+                  oninput="adjustPos()"
+                /><span class="slider-val" id="sl-desc-val">21%</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <main class="preview-area">
+          <div class="preview-wrapper">
+            <div class="preview-eyebrow">
+              <div class="preview-pulse"></div>
+              Preview — อัปเดตแบบ real-time
+            </div>
+            <div id="cert-empty">
+              <div class="ce-icon">
+                <svg viewBox="0 0 24 24">
+                  <path
+                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                  />
+                  <polyline points="14 2 14 8 20 8" />
+                  <circle cx="12" cy="14" r="3" />
+                </svg>
+              </div>
+              <p>เลือกหลักสูตรเพื่อแสดงใบประกาศ</p>
+              <small>เริ่มจากเลือกปีที่อบรมในแถบด้านซ้าย</small>
+            </div>
+            <div id="cert-container">
+              <img id="cert-bg" src="" alt="certificate background" />
+              <div id="cert-overlay">
+                <div class="cert-course-area">
+                  <div class="cert-course-text" id="disp-course">ชื่อคอร์ส</div>
+                </div>
+                <div class="cert-name-area">
+                  <div class="cert-name-text placeholder-text" id="disp-name">
+                    ชื่อ-นามสกุล
+                  </div>
+                </div>
+                <div class="cert-desc-area">
+                  <div class="cert-desc-text">
+                    ได้ผ่านการอบรมหลักสูตร
+                    <span id="disp-course-inline" style="color: #000"></span>
+                    เพื่อการเผยแพร่พระพุทธศาสนา<br />
+                    ระหว่างวันที่
+                    <span id="disp-date-inline" style="color: #000"></span> ณ
+                    อาคาร 100 ปี ชั้น L1M ห้องอบรมคอมพิวเตอร์
+                  </div>
+                </div>
+                <div class="cert-qr-area" id="cert-qr-area">
+                  <div id="qrcode"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      <div id="admin-data-view">
+        <aside class="admin-sidebar">
+          <div class="admin-sidebar-title">จัดการข้อมูล</div>
+          <button
+            class="admin-nav-btn active"
+            id="nav-courses"
+            onclick="adminNav('courses')"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg
+            >คอร์สทั้งหมด
+          </button>
+          <button
+            class="admin-nav-btn"
+            id="nav-students"
+            onclick="adminNav('students')"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg
+            >รายชื่อผู้เรียน
+          </button>
+          <button
+            class="admin-nav-btn"
+            id="nav-active"
+            onclick="adminNav('active')"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M9 11l3 3L22 4" />
+              <path
+                d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"
+              /></svg
+            >เปิดรับสมัคร
+          </button>
+        </aside>
+        <div class="admin-content" id="admin-content-area"></div>
+      </div>
+    </div>
+
+    <footer class="site-footer-new">
+      <div class="footer-new-inner">
+        <div class="fn-col fn-brand">
+          <img src="logo.png" alt="CTC Logo" class="fn-logo" />
+          <div>
+            <div class="fn-name-en">Computer Training Center</div>
+            <div class="fn-name-th">ศูนย์อบรมคอมพิวเตอร์</div>
+            <div class="fn-dept">
+              ฝ่ายสารสนเทศ สำนักประธานคณะกรรมการบริหารสภาธรรมกายสากล
+            </div>
+          </div>
+        </div>
+        <div class="fn-col">
+          <div class="fn-col-title">ติดต่อเรา</div>
+          <div class="fn-info-row">
+            <svg viewBox="0 0 24 24">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+            <span>อาคาร 100 ปี ชั้น L1M วัดพระธรรมกาย</span>
+          </div>
+          <div class="fn-info-row">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.44 2 2 0 0 1 3.6 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.41a16 16 0 0 0 6.07 6.07l.95-.95a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.73 16z"
+              />
+            </svg>
+            <span>02 831 1000 ต่อ 11850</span>
+          </div>
+          <div class="fn-social-row">
+            <a href="mailto:" class="fn-social-btn" title="Email"
+              ><svg viewBox="0 0 24 24">
+                <path
+                  d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"
+                />
+                <polyline points="22,6 12,13 2,6" /></svg
+            ></a>
+            <a href="#" class="fn-social-btn" title="Line"
+              ><svg viewBox="0 0 24 24">
+                <path
+                  d="M12 2C6.48 2 2 5.92 2 10.72c0 3.2 1.87 6.01 4.7 7.72-.19.68-.72 2.47-.83 2.85-.13.46.17.46.36.33.15-.1 1.96-1.33 2.75-1.87.64.09 1.31.14 2.02.14 5.52 0 10-3.92 10-8.72S17.52 2 12 2z"
+                /></svg
+            ></a>
+            <a href="#" class="fn-social-btn" title="Facebook"
+              ><svg viewBox="0 0 24 24">
+                <path
+                  d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"
+                /></svg
+            ></a>
+            <a href="#" class="fn-social-btn" title="YouTube"
+              ><svg viewBox="0 0 24 24">
+                <path
+                  d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58 2.78 2.78 0 0 0 1.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.96-1.96A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z"
+                />
+                <polygon
+                  points="9.75 15.02 15.5 12 9.75 8.98 9.75 15.02"
+                /></svg
+            ></a>
+          </div>
+        </div>
+        <div class="fn-col fn-qr-col">
+          <div class="fn-col-title">Line OpenChat</div>
+          <img src="line-qr.png" alt="Line OpenChat QR" class="fn-qr-img" />
+          <div class="fn-qr-label">สแกนเพื่อเข้าร่วมกลุ่ม</div>
+        </div>
+      </div>
+      <div class="footer-bottom-bar">
+        <span
+          >Copyright © <span id="footer-year"></span> CTC (Computer Training
+          Center) All rights reserved.</span
+        >
+        <button
+          class="footer-admin-link"
+          id="footer-admin-btn"
+          onclick="footerAdminAction()"
+        >
+          ผู้ดูแลระบบ
+        </button>
+      </div>
+    </footer>
+
+    <div class="modal-overlay" id="login-modal">
+      <div class="modal-box">
+        <div class="modal-icon">
+          <svg viewBox="0 0 24 24">
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        </div>
+        <div>
+          <div class="modal-title">เข้าสู่ระบบผู้ดูแล</div>
+          <div class="modal-sub">
+            สำหรับเจ้าหน้าที่ศูนย์อบรมคอมพิวเตอร์เท่านั้น
+          </div>
+        </div>
+        <div class="modal-field">
+          <label>Username</label
+          ><input
+            type="text"
+            id="inp-user"
+            autocomplete="username"
+            placeholder="กรอก username"
+          />
+        </div>
+        <div class="modal-field">
+          <label>Password</label
+          ><input
+            type="password"
+            id="inp-pass"
+            autocomplete="current-password"
+            placeholder="••••••••"
+            onkeydown="if (event.key === 'Enter') doLogin();"
+          />
+        </div>
+        <div class="modal-error" id="login-error"></div>
+        <button class="btn-login" id="btn-do-login" onclick="doLogin()">
+          เข้าสู่ระบบ
+        </button>
+        <button class="btn-modal-cancel" onclick="closeLoginModal()">
+          ยกเลิก
+        </button>
+      </div>
+    </div>
+
+    <div id="edit-modal-overlay">
+      <div class="edit-modal-box">
+        <div class="edit-modal-header">
+          <div class="edit-modal-title" id="edit-modal-title">แก้ไขข้อมูล</div>
+          <button class="edit-modal-close" onclick="closeEditModal()">
+            <svg viewBox="0 0 24 24">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div id="edit-modal-body"></div>
+        <div class="edit-modal-footer">
+          <button class="btn-modal-back" onclick="closeEditModal()">
+            ยกเลิก
+          </button>
+          <button
+            class="btn-modal-save"
+            id="btn-edit-save"
+            onclick="saveEdit()"
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
+              />
+              <polyline points="17 21 17 13 7 13 7 21" />
+              <polyline points="7 3 7 8 15 8" /></svg
+            >บันทึก
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.getElementById("footer-year").textContent =
+        new Date().getFullYear() + 2543;
+
+      const CERT_BG = "main1.png";
+      const COL_FIRSTNAME = "ชื่อ";
+      const COL_LASTNAME = "นามสกุล (ฉายา)";
+      const COL_COURSE_NAME = "ชื่อโปรแกรม";
+      const COL_DATE = "วันที่อบรม";
+
+      let allRecords = [];
+      let filteredByCourse = [];
+      let dropdownOpen = false;
+      let courseDropdownOpen = false;
+      let courseMap = {};
+      let allCourseKeys = [];
+      let selectedCourse = "";
+      let selectedYear = "";
+
+      async function loadAirtable() {
+        const statusEl = document.getElementById("api-status");
+        try {
+          const res = await fetch("backend/api.php");
+          const result = await res.json();
+          if (!result.ok)
+            throw new Error(result.error || "โหลดข้อมูลไม่สำเร็จ");
+          if (!result.records || result.records.length === 0)
+            throw new Error("ยังไม่มีข้อมูลในระบบ");
+          allRecords = result.records;
+          statusEl.className = "status-bar ok";
+          statusEl.innerHTML = `<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg><span>โหลดสำเร็จ ${allRecords.length} รายการ</span>`;
+          buildYearDropdown();
+        } catch (e) {
+          statusEl.className = "status-bar error";
+          statusEl.innerHTML = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span>${e.message}</span>`;
+        }
+      }
+
+      function buildYearDropdown() {
+        const years = new Set();
+        allRecords.forEach((r) => {
+          const y = r.fields["year_be"];
+          if (y) years.add(y);
+        });
+        renderYearItems(Array.from(years).sort((a, b) => b - a));
+      }
+      function renderYearItems(years) {
+        const list = document.getElementById("year-dropdown-list");
+        list.innerHTML = "";
+        if (!years.length) {
+          list.innerHTML =
+            '<div class="dropdown-item empty">ไม่พบข้อมูลปี</div>';
+          return;
+        }
+        years.forEach((y) => {
+          const div = document.createElement("div");
+          div.className =
+            "dropdown-item" + (y === selectedYear ? " active" : "");
+          div.textContent = "พ.ศ. " + y;
+          div.onclick = () => selectYear(y);
+          list.appendChild(div);
+        });
+      }
+      function toggleYearDropdown() {
+        const box = document.getElementById("year-dropdown-box");
+        const panel = document.getElementById("year-dropdown-panel");
+        const open = box.classList.contains("open");
+        box.classList.toggle("open", !open);
+        panel.classList.toggle("open", !open);
+      }
+      function closeYearDropdown() {
+        document.getElementById("year-dropdown-box").classList.remove("open");
+        document.getElementById("year-dropdown-panel").classList.remove("open");
+      }
+      function selectYear(year) {
+        selectedYear = year;
+        document.getElementById("year-dropdown-label").textContent =
+          "พ.ศ. " + year;
+        document
+          .getElementById("year-dropdown-selected")
+          .classList.add("chosen");
+        closeYearDropdown();
+        selectedCourse = "";
+        document.getElementById("course-dropdown-label").textContent =
+          "— เลือกหลักสูตร —";
+        document
+          .getElementById("course-dropdown-selected")
+          .classList.remove("chosen");
+        document.getElementById("name-dropdown-label").textContent =
+          "— เลือกคอร์สก่อน —";
+        document
+          .getElementById("name-dropdown-selected")
+          .classList.remove("chosen");
+        document.getElementById("inp-name").value = "";
+        document.getElementById("cert-container").style.display = "none";
+        document.getElementById("cert-empty").style.display = "flex";
+        document.getElementById("name-dropdown-box").classList.add("disabled");
+        document.getElementById("btn-dl").disabled = true;
+        document
+          .getElementById("course-dropdown-box")
+          .classList.remove("disabled");
+        buildCourseDropdown();
+      }
+
+      function buildCourseDropdown() {
+        const recordsInYear = selectedYear
+          ? allRecords.filter((r) => r.fields["year_be"] === selectedYear)
+          : allRecords;
+        courseMap = {};
+        recordsInYear.forEach((r) => {
+          const k = r.fields[COL_COURSE_NAME];
+          if (!k) return;
+          if (!courseMap[k])
+            courseMap[k] = {
+              records: [],
+              date: r.fields[COL_DATE] || "",
+              verify_url: r.fields["verify_url"] || "",
+            };
+          courseMap[k].records.push(r);
+        });
+        allCourseKeys = Object.keys(courseMap).sort((a, b) =>
+          a.localeCompare(b, "th"),
+        );
+        renderCourseItems(allCourseKeys);
+      }
+      function renderCourseItems(keys) {
+        const list = document.getElementById("course-dropdown-list");
+        list.innerHTML = "";
+        if (!keys.length) {
+          list.innerHTML =
+            '<div class="dropdown-item empty">ไม่พบหลักสูตร</div>';
+          return;
+        }
+        keys.forEach((k) => {
+          const div = document.createElement("div");
+          div.className =
+            "dropdown-item" + (k === selectedCourse ? " active" : "");
+          div.textContent = k;
+          div.onclick = () => selectCourse(k);
+          list.appendChild(div);
+        });
+      }
+      function toggleCourseDropdown() {
+        const box = document.getElementById("course-dropdown-box");
+        if (box.classList.contains("disabled")) return;
+        courseDropdownOpen = !courseDropdownOpen;
+        box.classList.toggle("open", courseDropdownOpen);
+        document
+          .getElementById("course-dropdown-panel")
+          .classList.toggle("open", courseDropdownOpen);
+        if (courseDropdownOpen) {
+          document.getElementById("course-search-input").value = "";
+          renderCourseItems(allCourseKeys);
+        }
+      }
+      function closeCourseDropdown() {
+        courseDropdownOpen = false;
+        document.getElementById("course-dropdown-box").classList.remove("open");
+        document
+          .getElementById("course-dropdown-panel")
+          .classList.remove("open");
+      }
+      function filterCourseDropdown() {
+        const q = document
+          .getElementById("course-search-input")
+          .value.trim()
+          .toLowerCase();
+        renderCourseItems(
+          q
+            ? allCourseKeys.filter((k) => k.toLowerCase().includes(q))
+            : allCourseKeys,
+        );
+      }
+      function selectCourse(course) {
+        selectedCourse = course;
+        document.getElementById("course-dropdown-label").textContent = course;
+        document
+          .getElementById("course-dropdown-selected")
+          .classList.add("chosen");
+        closeCourseDropdown();
+        onCourseChangeValue(course);
+      }
+      function onCourseChangeValue(course) {
+        document.getElementById("inp-name").value = "";
+        resetNameDropdown();
+        if (!course) {
+          document.getElementById("cert-container").style.display = "none";
+          document.getElementById("cert-empty").style.display = "flex";
+          document
+            .getElementById("name-dropdown-box")
+            .classList.add("disabled");
+          filteredByCourse = [];
+          updateCert();
+          return;
+        }
+        document.getElementById("cert-bg").src = CERT_BG;
+        document.getElementById("cert-container").style.display = "block";
+        document.getElementById("cert-empty").style.display = "none";
+        document
+          .getElementById("name-dropdown-box")
+          .classList.remove("disabled");
+        filteredByCourse = (courseMap[course] || {}).records || [];
+        renderDropdownItems(filteredByCourse);
+        const cnt = document.getElementById("name-count");
+        cnt.textContent =
+          filteredByCourse.length > 0
+            ? `พบ ${filteredByCourse.length} คน ในหลักสูตรนี้`
+            : "ไม่พบรายชื่อในหลักสูตรนี้";
+        document.getElementById("name-dropdown-label").textContent =
+          "— เลือกชื่อผู้รับ —";
+        updateCert();
+      }
+
+      function toggleDropdown() {
+        const box = document.getElementById("name-dropdown-box");
+        if (box.classList.contains("disabled")) return;
+        dropdownOpen = !dropdownOpen;
+        box.classList.toggle("open", dropdownOpen);
+        document
+          .getElementById("name-dropdown-panel")
+          .classList.toggle("open", dropdownOpen);
+        if (dropdownOpen) {
+          document.getElementById("name-search-input").value = "";
+          renderDropdownItems(filteredByCourse);
+        }
+      }
+      function closeDropdown() {
+        dropdownOpen = false;
+        document.getElementById("name-dropdown-box").classList.remove("open");
+        document.getElementById("name-dropdown-panel").classList.remove("open");
+      }
+      function filterDropdown() {
+        const q = document
+          .getElementById("name-search-input")
+          .value.trim()
+          .toLowerCase();
+        renderDropdownItems(
+          q
+            ? filteredByCourse.filter((r) => {
+                const fn = (r.fields[COL_FIRSTNAME] || "").toLowerCase();
+                const ln = (r.fields[COL_LASTNAME] || "").toLowerCase();
+                return fn.includes(q) || ln.includes(q);
+              })
+            : filteredByCourse,
+        );
+      }
+      function renderDropdownItems(records) {
+        const list = document.getElementById("name-dropdown-list");
+        list.innerHTML = "";
+        if (!records.length) {
+          list.innerHTML =
+            '<div class="dropdown-item empty">ไม่พบรายชื่อ</div>';
+          return;
+        }
+        records.slice(0, 200).forEach((r) => {
+          const fn = r.fields[COL_FIRSTNAME] || "";
+          const ln = r.fields[COL_LASTNAME] || "";
+          const fullName = (fn + " " + ln).trim();
+          if (!fullName) return;
+          const div = document.createElement("div");
+          div.className = "dropdown-item";
+          div.textContent = fullName;
+          div.onclick = () => selectName(fullName);
+          list.appendChild(div);
+        });
+      }
+      function selectName(name) {
+        document.getElementById("inp-name").value = name;
+        document.getElementById("name-dropdown-label").textContent = name;
+        document
+          .getElementById("name-dropdown-selected")
+          .classList.add("chosen");
+        document
+          .querySelectorAll("#name-dropdown-list .dropdown-item")
+          .forEach((d) => {
+            d.classList.toggle("active", d.textContent === name);
+          });
+        closeDropdown();
+        updateCert();
+      }
+      function resetNameDropdown() {
+        document.getElementById("name-dropdown-label").textContent =
+          "— เลือกชื่อผู้รับ —";
+        document
+          .getElementById("name-dropdown-selected")
+          .classList.remove("chosen");
+        document.getElementById("name-dropdown-list").innerHTML = "";
+        document.getElementById("name-count").textContent = "";
+        closeDropdown();
+      }
+
+      document.addEventListener("click", (e) => {
+        const nameWrap = document
+          .getElementById("name-dropdown-box")
+          ?.closest(".dropdown-wrap");
+        if (nameWrap && !nameWrap.contains(e.target)) closeDropdown();
+        const cWrap = document.getElementById("course-dropdown-wrap");
+        if (cWrap && !cWrap.contains(e.target)) closeCourseDropdown();
+        const yWrap = document.getElementById("year-dropdown-wrap");
+        if (yWrap && !yWrap.contains(e.target)) closeYearDropdown();
+      });
+
+      function updateQRCode() {
+        const qrArea = document.getElementById("cert-qr-area");
+        const qrCont = document.getElementById("qrcode");
+        const url = (courseMap[selectedCourse] || {}).verify_url || "";
+        if (!url) {
+          qrArea.style.display = "none";
+          return;
+        }
+        qrCont.innerHTML = "";
+        new QRCode(qrCont, {
+          text: url,
+          width: 256,
+          height: 256,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M,
+        });
+        qrArea.style.display = "block";
+      }
+
+      function updateCert() {
+        const name = document.getElementById("inp-name").value.trim();
+        const disp = document.getElementById("disp-name");
+        const info = courseMap[selectedCourse] || {};
+        document.getElementById("disp-course").textContent =
+          selectedCourse || "ชื่อคอร์ส";
+        if (name) {
+          disp.textContent = name;
+          disp.classList.remove("placeholder-text");
+        } else {
+          disp.textContent = "ชื่อ-นามสกุล";
+          disp.classList.add("placeholder-text");
+        }
+        if (selectedCourse) {
+          document.getElementById("disp-course-inline").textContent =
+            selectedCourse;
+          document.getElementById("disp-date-inline").textContent =
+            info.date || "";
+        }
+        updateQRCode();
+        document.getElementById("btn-dl").disabled = !(name && selectedCourse);
+      }
+
+      async function downloadCert() {
+        const btn = document.getElementById("btn-dl");
+        btn.innerHTML =
+          '<svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2;animation:spin 1s linear infinite"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> กำลังสร้างไฟล์...';
+        btn.disabled = true;
+        try {
+          const canvas = await html2canvas(
+            document.getElementById("cert-container"),
+            {
+              scale: 3,
+              useCORS: true,
+              allowTaint: true,
+              backgroundColor: null,
+            },
+          );
+          const name = document
+            .getElementById("inp-name")
+            .value.trim()
+            .replace(/\s+/g, "_");
+          const link = document.createElement("a");
+          link.download = "certificate_" + name + ".png";
+          link.href = canvas.toDataURL("image/png");
+          link.click();
+        } catch (e) {
+          alert("เกิดข้อผิดพลาด: " + e.message);
+        }
+        btn.innerHTML =
+          '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> ดาวน์โหลดใบประกาศ (PNG)';
+        updateCert();
+      }
+
+      function adjustPos() {
+        const vC = document.getElementById("sl-course").value;
+        document.getElementById("sl-course-val").textContent = vC + "%";
+        document.querySelector(".cert-course-area").style.top = vC + "%";
+        const vN = document.getElementById("sl-name").value;
+        document.getElementById("sl-name-val").textContent = vN + "%";
+        document.querySelector(".cert-name-area").style.bottom = vN + "%";
+        const vD = document.getElementById("sl-desc").value;
+        document.getElementById("sl-desc-val").textContent = vD + "%";
+        document.querySelector(".cert-desc-area").style.bottom = vD + "%";
+      }
+
+      loadAirtable();
+    </script>
+
+    <script>
+      async function checkAdminSession() {
+        const cached = sessionStorage.getItem("is_admin");
+        if (cached === "true") setAdminUI(true);
+        try {
+          const res = await fetch("backend/auth.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "action=check",
+          });
+          const data = await res.json();
+          if (data.is_admin) sessionStorage.setItem("is_admin", "true");
+          else sessionStorage.removeItem("is_admin");
+          setAdminUI(data.is_admin);
+        } catch (e) {
+          if (cached === "true") setAdminUI(true);
+        }
+      }
+      function openLoginModal() {
+        document.getElementById("login-modal").classList.add("open");
+        document.getElementById("inp-user").focus();
+        document.getElementById("login-error").textContent = "";
+        document.getElementById("inp-user").value = "";
+        document.getElementById("inp-pass").value = "";
+      }
+      function closeLoginModal() {
+        document.getElementById("login-modal").classList.remove("open");
+      }
+      async function doLogin() {
+        const btn = document.getElementById("btn-do-login");
+        const errEl = document.getElementById("login-error");
+        const user = document.getElementById("inp-user").value.trim();
+        const pass = document.getElementById("inp-pass").value;
+        if (!user || !pass) {
+          errEl.textContent = "กรุณากรอก username และ password";
+          return;
+        }
+        btn.disabled = true;
+        btn.textContent = "กำลังตรวจสอบ...";
+        errEl.textContent = "";
+        try {
+          const res = await fetch("backend/auth.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: `action=login&username=${encodeURIComponent(user)}&password=${encodeURIComponent(pass)}`,
+          });
+          const data = await res.json();
+          if (data.ok) {
+            sessionStorage.setItem("is_admin", "true");
+            closeLoginModal();
+            setAdminUI(true);
+          } else {
+            errEl.textContent = data.error || "เกิดข้อผิดพลาด";
+          }
+        } catch (e) {
+          errEl.textContent = "ไม่สามารถติดต่อ server ได้";
+        }
+        btn.disabled = false;
+        btn.textContent = "เข้าสู่ระบบ";
+      }
+      async function adminLogout() {
+        sessionStorage.removeItem("is_admin");
+        await fetch("backend/auth.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "action=logout",
+        });
+        setAdminUI(false);
+      }
+      document
+        .getElementById("login-modal")
+        .addEventListener("click", function (e) {
+          if (e.target === this) closeLoginModal();
+        });
+
+      window.setAdminUI = function (isAdmin) {
+        const strip = document.getElementById("admin-tab-strip");
+        const footerBtn = document.getElementById("footer-admin-btn");
+        if (isAdmin) {
+          strip.classList.add("visible");
+          if (footerBtn) footerBtn.textContent = "ออกจากระบบ";
+        } else {
+          strip.classList.remove("visible");
+          if (footerBtn) footerBtn.textContent = "ผู้ดูแลระบบ";
+          switchTab("download");
+        }
+      };
+      checkAdminSession();
+    </script>
+
+    <script>
+      let currentTab = "download";
+      let currentAdminSection = "courses";
+      let editContext = null;
+      let studentsPage = 1;
+      let studentMgmtCourses = [];
+      let studentFilters = { q: "", year: "", courseId: "" };
+      let studentSort = { col: "first_name", dir: "asc" };
+      let studentSearchTimer = null;
+
+      function switchTab(tab) {
+        currentTab = tab;
+        document
+          .getElementById("tab-download")
+          .classList.toggle("active", tab === "download");
+        document
+          .getElementById("tab-manage")
+          .classList.toggle("active", tab === "manage");
+        const dlView = document.getElementById("view-download");
+        const adminView = document.getElementById("admin-data-view");
+        if (tab === "download") {
+          dlView.style.display = "flex";
+          adminView.classList.remove("visible");
+        } else {
+          dlView.style.display = "none";
+          adminView.classList.add("visible");
+          if (currentAdminSection === "courses") loadCoursesTable();
+          else loadStudentsTable();
+        }
+      }
+
+      function adminNav(section) {
+        currentAdminSection = section;
+        document
+          .getElementById("nav-courses")
+          .classList.toggle("active", section === "courses");
+        document
+          .getElementById("nav-students")
+          .classList.toggle("active", section === "students");
+        if (section === "courses") loadCoursesTable();
+        else if (section === "students") loadStudentsTable();
+        else if (section === "active") loadActiveCoursesAdmin();
+      }
+
+      let courseTableData = [];
+      let courseTableSort = { col: null, asc: true };
+
+      const THAI_MONTHS = [
+        "ม.ค.",
+        "ก.พ.",
+        "มี.ค.",
+        "เม.ย.",
+        "พ.ค.",
+        "มิ.ย.",
+        "ก.ค.",
+        "ส.ค.",
+        "ก.ย.",
+        "ต.ค.",
+        "พ.ย.",
+        "ธ.ค.",
+      ];
+      function parseTrainingDateKey(str) {
+        if (!str) return 0;
+        const yearMatch = str.match(/\d{4}/);
+        const year = yearMatch ? parseInt(yearMatch[0], 10) : 0;
+        let month = 0;
+        for (let i = 0; i < THAI_MONTHS.length; i++) {
+          if (str.indexOf(THAI_MONTHS[i]) !== -1) {
+            month = i + 1;
+            break;
+          }
+        }
+        const withoutYear = yearMatch ? str.replace(yearMatch[0], "") : str;
+        const dayMatch = withoutYear.match(/\d{1,2}/);
+        const day = dayMatch ? parseInt(dayMatch[0], 10) : 0;
+        return year * 10000 + month * 100 + day;
+      }
+
+      async function loadCoursesTable() {
+        const area = document.getElementById("admin-content-area");
+        area.innerHTML =
+          '<div style="color:var(--text3);padding:2rem;font-size:13px;">กำลังโหลด...</div>';
+        const res = await fetch("backend/admin_api.php?action=list_courses");
+        const result = await res.json();
+        if (!result.ok) {
+          area.innerHTML = `<div style="color:var(--red);padding:2rem;font-size:13px;">❌ ${result.error}</div>`;
+          return;
+        }
+        courseTableData = result.data;
+        courseTableSort = { col: null, asc: true };
+
+        const years = [
+          ...new Set(result.data.map((r) => r.year_be).filter(Boolean)),
+        ].sort((a, b) => b - a);
+
+        area.innerHTML = `
+<div class="admin-page-title">
+  <h2><svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--blue);fill:none;stroke-width:2;vertical-align:-3px;margin-right:6px"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>คอร์สทั้งหมด</h2>
+  <span id="courses-count-badge" class="badge-count">${courseTableData.length} คอร์ส</span>
+</div>
+<div class="admin-toolbar">
+  <div class="admin-search">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" placeholder="ค้นหาชื่อย่อ หรือ ชื่อเต็ม..." id="course-search" oninput="renderCourseTable()" autocomplete="off">
+  </div>
+  <select id="course-year-filter" class="year-filter-select" onchange="renderCourseTable()">
+    <option value="">ทุกปี</option>
+    ${years.map((y) => `<option value="${y}">พ.ศ. ${y}</option>`).join("")}
+  </select>
+  <button class="btn-sm btn-primary" onclick="openAddCourse()">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>เพิ่มคอร์สใหม่
+  </button>
+</div>
+<div class="table-card"><div style="overflow-x:auto">
+<table class="data-table">
+  <thead><tr>
+    <th onclick="sortCourseTable('id')" style="cursor:pointer;user-select:none">ID <span id="sort-id"></span></th>
+    <th onclick="sortCourseTable('short_name')" style="cursor:pointer;user-select:none">ชื่อย่อ <span id="sort-short_name"></span></th>
+    <th onclick="sortCourseTable('long_key')" style="cursor:pointer;user-select:none">ชื่อยาว <span id="sort-long_key"></span></th>
+    <th onclick="sortCourseTable('training_date')" style="cursor:pointer;user-select:none">วันที่อบรม <span id="sort-training_date"></span></th>
+    <th onclick="sortCourseTable('year_be')" style="cursor:pointer;user-select:none">ปี พ.ศ. <span id="sort-year_be"></span></th>
+    <th onclick="sortCourseTable('student_count')" style="cursor:pointer;user-select:none">ผู้เรียน <span id="sort-student_count"></span></th>
+    <th>Verify URL</th>
+    <th>จัดการ</th>
+  </tr></thead>
+  <tbody id="courses-tbody"></tbody>
+</table></div></div>`;
+        renderCourseTable();
+      }
+
+      function sortCourseTable(col) {
+        if (courseTableSort.col === col)
+          courseTableSort.asc = !courseTableSort.asc;
+        else {
+          courseTableSort.col = col;
+          courseTableSort.asc = true;
+        }
+        renderCourseTable();
+      }
+
+      function renderCourseTable() {
+        const q = (document.getElementById("course-search")?.value || "")
+          .trim()
+          .toLowerCase();
+        const yearFilter =
+          document.getElementById("course-year-filter")?.value || "";
+
+        let rows = courseTableData.filter((r) => {
+          const matchYear = !yearFilter || r.year_be === yearFilter;
+          const matchSearch =
+            !q ||
+            (r.short_name || "").toLowerCase().includes(q) ||
+            (r.long_key || "").toLowerCase().includes(q);
+          return matchYear && matchSearch;
+        });
+
+        const col = courseTableSort.col;
+        if (col) {
+          rows = [...rows].sort((a, b) => {
+            let va = a[col] ?? "";
+            let vb = b[col] ?? "";
+            if (col === "id" || col === "student_count" || col === "year_be") {
+              va = Number(va) || 0;
+              vb = Number(vb) || 0;
+            } else if (col === "training_date") {
+              va = parseTrainingDateKey(va);
+              vb = parseTrainingDateKey(vb);
+            } else {
+              va = String(va).toLowerCase();
+              vb = String(vb).toLowerCase();
+            }
+            return courseTableSort.asc
+              ? va > vb
+                ? 1
+                : va < vb
+                  ? -1
+                  : 0
+              : va < vb
+                ? 1
+                : va > vb
+                  ? -1
+                  : 0;
+          });
+        }
+
+        [
+          "id",
+          "short_name",
+          "long_key",
+          "training_date",
+          "year_be",
+          "student_count",
+        ].forEach((c) => {
+          const el = document.getElementById("sort-" + c);
+          if (el)
+            el.textContent =
+              col === c ? (courseTableSort.asc ? " ▲" : " ▼") : "";
+        });
+
+        const badge = document.getElementById("courses-count-badge");
+        if (badge) badge.textContent = rows.length + " คอร์ส";
+
+        const tbody = document.getElementById("courses-tbody");
+        if (!tbody) return;
+        tbody.innerHTML =
+          rows
+            .map(
+              (
+                r,
+              ) => `<tr data-id="${r.id}" data-name="${escHtml(r.short_name)}">
+    <td class="cell-id">${r.id}</td>
+    <td><strong style="font-weight:600">${escHtml(r.short_name)}</strong></td>
+    <td class="cell-muted cell-truncate" title="${escHtml(r.long_key)}">${escHtml(r.long_key)}</td>
+    <td class="cell-muted" style="white-space:nowrap">${escHtml(r.training_date || "—")}</td>
+    <td>${r.year_be || "—"}</td>
+    <td>${r.student_count} คน</td>
+    <td class="cell-link">${r.verify_url ? `<a href="${escHtml(r.verify_url)}" target="_blank"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>ลิงก์</a>` : '<span class="cell-muted">—</span>'}</td>
+    <td><div class="actions">
+      <button class="btn-sm btn-edit" onclick="openEditCourse(${r.id})"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>แก้ไข</button>
+      <button class="btn-sm btn-danger" onclick="deleteCourse(${r.id},'${escHtml(r.short_name)}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+    </div></td>
+  </tr>`,
+            )
+            .join("") ||
+          '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:1.5rem">ไม่พบข้อมูล</td></tr>';
+      }
+
+      function filterCourseTable() {
+        renderCourseTable();
+      }
+
+      async function openEditCourse(id) {
+        const res = await fetch("backend/admin_api.php?action=list_courses");
+        const result = await res.json();
+        const row = result.data.find((r) => r.id === id);
+        if (!row) return;
+        editContext = { type: "course", id };
+        document.getElementById("edit-modal-title").textContent =
+          `แก้ไขคอร์ส: ${row.short_name}`;
+        document.getElementById("edit-modal-body").innerHTML =
+          `<div class="edit-grid">
+    <div class="edit-field full"><label>ชื่อย่อ (short_name) *</label><input type="text" id="ef-short_name" value="${escHtml(row.short_name)}"></div>
+    <div class="edit-field full"><label>ชื่อยาว (long_key) *</label><input type="text" id="ef-long_key" value="${escHtml(row.long_key || "")}"></div>
+    <div class="edit-field full"><label>วันที่อบรม</label><input type="text" id="ef-training_date" value="${escHtml(row.training_date || "")}"></div>
+    <div class="edit-field"><label>ปี พ.ศ.</label><input type="text" id="ef-year_be" value="${escHtml(row.year_be || "")}" placeholder="เช่น 2568" maxlength="4" inputmode="numeric" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
+    <div class="edit-field"><label>Verify URL (QR code)</label><input type="text" id="ef-verify_url" value="${escHtml(row.verify_url || "")}"></div>
+  </div>`;
+        document.getElementById("edit-modal-overlay").classList.add("open");
+      }
+
+      function openAddCourse() {
+        editContext = { type: "course", id: null };
+        document.getElementById("edit-modal-title").textContent =
+          "เพิ่มคอร์สใหม่";
+        document.getElementById("edit-modal-body").innerHTML =
+          `<div class="edit-grid">
+    <div class="edit-field full"><label>ชื่อย่อ (short_name) *</label><input type="text" id="ef-short_name" placeholder="เช่น คอมพิวเตอร์เบื้องต้น"></div>
+    <div class="edit-field full"><label>ชื่อยาว (long_key) *</label><input type="text" id="ef-long_key" placeholder="เช่น คอมพิวเตอร์เบื้องต้น 1-3 ม.ค. 2568"></div>
+    <div class="edit-field full"><label>วันที่อบรม</label><input type="text" id="ef-training_date" placeholder="เช่น วันที่ 1-3 ม.ค. 2568"></div>
+    <div class="edit-field"><label>ปี พ.ศ.</label><input type="text" id="ef-year_be" placeholder="เช่น 2568" maxlength="4" inputmode="numeric" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
+    <div class="edit-field"><label>Verify URL (QR code)</label><input type="text" id="ef-verify_url" placeholder="https://..."></div>
+  </div>`;
+        document.getElementById("edit-modal-overlay").classList.add("open");
+      }
+
+      async function deleteCourse(id, name) {
+        if (
+          !confirm(
+            `ยืนยันลบคอร์ส "${name}"?\nจะลบรายชื่อผู้เรียนในคอร์สนี้ทั้งหมดด้วย`,
+          )
+        )
+          return;
+        const fd = new FormData();
+        fd.append("action", "delete_course");
+        fd.append("id", id);
+        const res = await fetch("backend/admin_api.php", {
+          method: "POST",
+          body: fd,
+        });
+        const result = await res.json();
+        if (result.ok) loadCoursesTable();
+        else alert("เกิดข้อผิดพลาด: " + result.error);
+      }
+
+      async function loadStudentsTable(page) {
+        if (page !== undefined) studentsPage = page;
+        const area = document.getElementById("admin-content-area");
+        area.innerHTML =
+          '<div style="color:var(--text3);padding:2rem;font-size:13px;">กำลังโหลด...</div>';
+
+        const cRes = await fetch("backend/admin_api.php?action=list_courses");
+        const cResult = await cRes.json();
+        studentMgmtCourses = cResult.ok ? cResult.data : [];
+        const years = [
+          ...new Set(studentMgmtCourses.map((c) => c.year_be).filter(Boolean)),
+        ].sort((a, b) => b - a);
+
+        area.innerHTML = `
+<div class="admin-page-title">
+  <h2><svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--blue);fill:none;stroke-width:2;vertical-align:-3px;margin-right:6px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>รายชื่อผู้เรียน</h2>
+  <span class="badge-count" id="students-count-badge">0 คน</span>
+</div>
+<div class="admin-toolbar">
+  <div class="admin-search">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" placeholder="ค้นหาชื่อหรือนามสกุล..." id="student-search" oninput="onStudentSearchInput()" autocomplete="off">
+  </div>
+  <select id="student-year-filter" class="year-filter-select" onchange="onStudentYearChange()">
+    <option value="">ทุกปี</option>
+    ${years.map((y) => `<option value="${y}">พ.ศ. ${y}</option>`).join("")}
+  </select>
+  <select id="student-course-filter" class="year-filter-select" onchange="onStudentCourseChange()" disabled>
+    <option value="">— เลือกปีก่อน —</option>
+  </select>
+  <button class="btn-sm btn-primary" onclick="openAddStudent()">
+    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>เพิ่มรายชื่อ
+  </button>
+</div>
+<div class="table-card"><div style="overflow-x:auto">
+<table class="data-table">
+  <thead><tr>
+    <th onclick="sortStudentsTable('id')" style="cursor:pointer;user-select:none">รหัส <span id="ssort-id"></span></th>
+    <th onclick="sortStudentsTable('course_name')" style="cursor:pointer;user-select:none">ชื่อคอร์ส <span id="ssort-course_name"></span></th>
+    <th onclick="sortStudentsTable('first_name')" style="cursor:pointer;user-select:none">ชื่อ <span id="ssort-first_name"></span></th>
+    <th onclick="sortStudentsTable('last_name')" style="cursor:pointer;user-select:none">นามสกุล <span id="ssort-last_name"></span></th>
+    <th onclick="sortStudentsTable('member_type')" style="cursor:pointer;user-select:none">ประเภท <span id="ssort-member_type"></span></th>
+    <th onclick="sortStudentsTable('apply_date')" style="cursor:pointer;user-select:none">วันที่สมัคร <span id="ssort-apply_date"></span></th>
+    <th onclick="sortStudentsTable('age')" style="cursor:pointer;user-select:none">อายุ <span id="ssort-age"></span></th>
+    <th onclick="sortStudentsTable('department')" style="cursor:pointer;user-select:none">หน่วยงาน <span id="ssort-department"></span></th>
+    <th onclick="sortStudentsTable('office')" style="cursor:pointer;user-select:none">สำนัก <span id="ssort-office"></span></th>
+    <th onclick="sortStudentsTable('position')" style="cursor:pointer;user-select:none">ตำแหน่ง <span id="ssort-position"></span></th>
+    <th onclick="sortStudentsTable('phone_mobile')" style="cursor:pointer;user-select:none">มือถือ <span id="ssort-phone_mobile"></span></th>
+    <th onclick="sortStudentsTable('email')" style="cursor:pointer;user-select:none">อีเมล <span id="ssort-email"></span></th>
+    <th>จัดการ</th>
+  </tr></thead>
+  <tbody id="students-tbody"></tbody>
+</table></div></div>
+<div class="pagination" id="students-pagination"></div>`;
+
+        fetchStudentsRows();
+      }
+
+      function onStudentSearchInput() {
+        clearTimeout(studentSearchTimer);
+        studentSearchTimer = setTimeout(() => {
+          studentFilters.q = document
+            .getElementById("student-search")
+            .value.trim();
+          fetchStudentsRows(1);
+        }, 300);
+      }
+
+      function onStudentYearChange() {
+        const year = document.getElementById("student-year-filter").value;
+        studentFilters.year = year;
+        studentFilters.courseId = "";
+
+        const courseSelect = document.getElementById("student-course-filter");
+        if (!year) {
+          courseSelect.disabled = true;
+          courseSelect.innerHTML = '<option value="">— เลือกปีก่อน —</option>';
+        } else {
+          const coursesInYear = studentMgmtCourses.filter(
+            (c) => c.year_be === year,
+          );
+          courseSelect.disabled = false;
+          courseSelect.innerHTML =
+            '<option value="">ทุกคอร์ส</option>' +
+            coursesInYear
+              .map(
+                (c) =>
+                  `<option value="${c.id}">${escHtml(c.short_name)}</option>`,
+              )
+              .join("");
+        }
+        fetchStudentsRows(1);
+      }
+
+      function onStudentCourseChange() {
+        studentFilters.courseId = document.getElementById(
+          "student-course-filter",
+        ).value;
+        fetchStudentsRows(1);
+      }
+
+      function sortStudentsTable(col) {
+        if (studentSort.col === col)
+          studentSort.dir = studentSort.dir === "asc" ? "desc" : "asc";
+        else {
+          studentSort.col = col;
+          studentSort.dir = "asc";
+        }
+        fetchStudentsRows(1);
+      }
+
+      async function fetchStudentsRows(page) {
+        if (page !== undefined) studentsPage = page;
+        const tbody = document.getElementById("students-tbody");
+        if (!tbody) return;
+        tbody.innerHTML =
+          '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:1.5rem">กำลังโหลด...</td></tr>';
+
+        const params = {
+          action: "list_students",
+          page: studentsPage,
+          sort: studentSort.col,
+          dir: studentSort.dir,
+        };
+        if (studentFilters.q) params.q = studentFilters.q;
+        if (studentFilters.year) params.year_be = studentFilters.year;
+        if (studentFilters.courseId) params.course_id = studentFilters.courseId;
+
+        let result;
+        try {
+          const res = await fetch(
+            "backend/admin_api.php?" + new URLSearchParams(params),
+          );
+          result = await res.json();
+        } catch (e) {
+          tbody.innerHTML = `<tr><td colspan="13" style="color:var(--red);padding:1.5rem">❌ ติดต่อ server ไม่สำเร็จ หรือได้รับข้อมูลที่ไม่ถูกต้อง (${e.message})</td></tr>`;
+          return;
+        }
+        if (!result.ok) {
+          tbody.innerHTML = `<tr><td colspan="13" style="color:var(--red);padding:1.5rem">❌ ${result.error}</td></tr>`;
+          return;
+        }
+
+        const { data, total, limit } = result;
+        const totalPages = Math.ceil(total / limit) || 1;
+
+        document.getElementById("students-count-badge").textContent =
+          total + " คน";
+
+        [
+          "id",
+          "course_name",
+          "first_name",
+          "last_name",
+          "member_type",
+          "apply_date",
+          "age",
+          "department",
+          "office",
+          "position",
+          "phone_mobile",
+          "email",
+        ].forEach((c) => {
+          const el = document.getElementById("ssort-" + c);
+          if (el)
+            el.textContent =
+              studentSort.col === c
+                ? studentSort.dir === "asc"
+                  ? " ▲"
+                  : " ▼"
+                : "";
+        });
+
+        tbody.innerHTML =
+          data
+            .map(
+              (r) => `<tr>
+    <td class="cell-id">${r.id}</td>
+    <td style="font-size:12px;color:var(--blue);white-space:nowrap;font-weight:500">${escHtml(r.course_name)}</td>
+    <td><strong style="font-weight:600">${escHtml(r.first_name)}</strong></td>
+    <td>${escHtml(r.last_name || "—")}</td>
+    <td class="cell-muted">${escHtml(r.member_type || "—")}</td>
+    <td class="cell-muted" style="white-space:nowrap">${escHtml(r.apply_date || "—")}</td>
+    <td class="cell-muted" style="text-align:center">${escHtml(r.age || "—")}</td>
+    <td class="cell-muted">${escHtml(r.department || "—")}</td>
+    <td class="cell-muted">${escHtml(r.office || "—")}</td>
+    <td class="cell-muted">${escHtml(r.position || "—")}</td>
+    <td class="cell-muted" style="white-space:nowrap">${escHtml(r.phone_mobile || "—")}</td>
+    <td class="cell-muted">${escHtml(r.email || "—")}</td>
+    <td><div class="actions">
+      <button class="btn-sm btn-edit" onclick="openEditStudent(${r.id})"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+      <button class="btn-sm btn-danger" onclick="deleteStudent(${r.id},'${escHtml(r.first_name + " " + (r.last_name || ""))}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+    </div></td>
+  </tr>`,
+            )
+            .join("") ||
+          '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:1.5rem">ไม่พบข้อมูล</td></tr>';
+
+        document.getElementById("students-pagination").innerHTML = `
+  <button class="page-btn" onclick="fetchStudentsRows(${studentsPage - 1})" ${studentsPage <= 1 ? "disabled" : ""}><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+  <span class="page-info">หน้า ${studentsPage} / ${totalPages}</span>
+  <button class="page-btn" onclick="fetchStudentsRows(${studentsPage + 1})" ${studentsPage >= totalPages ? "disabled" : ""}><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>`;
+      }
+
+      async function fetchCoursesForSelect(selectedId = "") {
+        const res = await fetch("backend/admin_api.php?action=list_courses");
+        const result = await res.json();
+        const courses = result.ok ? result.data : [];
+        return `<select id="ef-course_id" style="width:100%;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:8px 11px;font-size:13px;font-family:'Sarabun',sans-serif;color:var(--text);outline:none;">
+    ${courses.map((c) => `<option value="${c.id}" ${c.id == selectedId ? "selected" : ""}>${escHtml(c.short_name)} (${c.year_be || "—"})</option>`).join("")}
+  </select>`;
+      }
+
+      async function openEditStudent(id) {
+        const res = await fetch(
+          `backend/admin_api.php?action=get_student&id=${id}`,
+        );
+        const result = await res.json();
+        if (!result.ok || !result.data) return;
+        const r = result.data;
+        editContext = { type: "student", id };
+        const courseSelect = await fetchCoursesForSelect(r.course_id);
+        document.getElementById("edit-modal-title").textContent =
+          `แก้ไขข้อมูล: ${r.first_name} ${r.last_name || ""}`;
+        document.getElementById("edit-modal-body").innerHTML =
+          `<div class="edit-grid">
+    <div class="edit-field full"><label>คอร์สที่ลงเรียน *</label>${courseSelect}</div>
+    ${ef("first_name", "ชื่อ *", r.first_name)}${ef("last_name", "นามสกุล (ฉายา)", r.last_name)}
+    ${ef("member_type", "ประเภทสมาชิก", r.member_type)}${ef("apply_date", "วันที่สมัคร", r.apply_date)}
+    ${ef("birth_date", "วันเกิด", r.birth_date)}${ef("age", "อายุ", r.age)}
+    ${ef("royal_title", "พรรษาที่", r.royal_title)}${ef("education_level", "ระดับการศึกษา", r.education_level)}
+    ${ef("faculty", "คณะ", r.faculty)}${ef("major", "สาขา", r.major)}
+    ${ef("institution", "สถาบัน", r.institution)}${ef("department", "หน่วยงาน", r.department)}
+    ${ef("office", "สำนัก", r.office)}${ef("position", "ตำแหน่ง", r.position)}
+    ${ef("phone_internal", "เบอร์ภายใน", r.phone_internal)}${ef("phone_mobile", "เบอร์มือถือ", r.phone_mobile)}
+    ${ef("email", "Email", r.email, "full")}
+    ${ef("head_status", "สถานะหัวหน้ากอง", r.head_status)}${ef("attendance", "การเข้าอบรม", r.attendance)}
+  </div>`;
+        document.getElementById("edit-modal-overlay").classList.add("open");
+      }
+
+      async function openAddStudent() {
+        editContext = { type: "student", id: null };
+        const courseSelect = await fetchCoursesForSelect("");
+        document.getElementById("edit-modal-title").textContent =
+          "เพิ่มรายชื่อผู้เรียนใหม่";
+        document.getElementById("edit-modal-body").innerHTML =
+          `<div class="edit-grid">
+    <div class="edit-field full"><label>คอร์สที่ลงเรียน *</label>${courseSelect}</div>
+    ${ef("first_name", "ชื่อ *", "")}${ef("last_name", "นามสกุล (ฉายา)", "")}
+    ${ef("member_type", "ประเภทสมาชิก", "")}${ef("apply_date", "วันที่สมัคร", "")}
+    ${ef("birth_date", "วันเกิด", "")}${ef("age", "อายุ", "")}
+    ${ef("royal_title", "พรรษาที่", "")}${ef("education_level", "ระดับการศึกษา", "")}
+    ${ef("faculty", "คณะ", "")}${ef("major", "สาขา", "")}
+    ${ef("institution", "สถาบัน", "")}${ef("department", "หน่วยงาน", "")}
+    ${ef("office", "สำนัก", "")}${ef("position", "ตำแหน่ง", "")}
+    ${ef("phone_internal", "เบอร์ภายใน", "")}${ef("phone_mobile", "เบอร์มือถือ", "")}
+    ${ef("email", "Email", "", "full")}
+    ${ef("head_status", "สถานะหัวหน้ากอง", "")}${ef("attendance", "การเข้าอบรม", "")}
+  </div>`;
+        document.getElementById("edit-modal-overlay").classList.add("open");
+      }
+
+      function ef(field, label, value, extra = "") {
+        return `<div class="edit-field ${extra}"><label>${label}</label><input type="text" id="ef-${field}" value="${escHtml(value || "")}"></div>`;
+      }
+
+      async function deleteStudent(id, name) {
+        if (!confirm(`ยืนยันลบ "${name}"?`)) return;
+        const fd = new FormData();
+        fd.append("action", "delete_student");
+        fd.append("id", id);
+        const res = await fetch("backend/admin_api.php", {
+          method: "POST",
+          body: fd,
+        });
+        const result = await res.json();
+        if (result.ok) loadStudentsTable();
+        else alert("เกิดข้อผิดพลาด: " + result.error);
+      }
+
+      async function saveEdit() {
+        if (!editContext) return;
+        const btn = document.getElementById("btn-edit-save");
+        btn.disabled = true;
+        btn.textContent = "กำลังบันทึก...";
+        const fd = new FormData();
+        const isNew = editContext.id === null;
+        const editType = editContext.type;
+        if (editType === "course") {
+          fd.append("action", isNew ? "add_course" : "update_course");
+          if (!isNew) fd.append("id", editContext.id);
+          [
+            "short_name",
+            "long_key",
+            "training_date",
+            "year_be",
+            "verify_url",
+          ].forEach((f) =>
+            fd.append(f, document.getElementById("ef-" + f)?.value || ""),
+          );
+        } else {
+          fd.append("action", isNew ? "add_student" : "update_student");
+          if (!isNew) fd.append("id", editContext.id);
+          fd.append(
+            "course_id",
+            document.getElementById("ef-course_id")?.value || "",
+          );
+          [
+            "first_name",
+            "last_name",
+            "member_type",
+            "apply_date",
+            "email",
+            "phone_mobile",
+            "phone_internal",
+            "birth_date",
+            "age",
+            "royal_title",
+            "education_level",
+            "faculty",
+            "major",
+            "institution",
+            "department",
+            "office",
+            "position",
+            "head_status",
+            "attendance",
+          ].forEach((f) =>
+            fd.append(f, document.getElementById("ef-" + f)?.value || ""),
+          );
+        }
+        const res = await fetch("backend/admin_api.php", {
+          method: "POST",
+          body: fd,
+        });
+        const result = await res.json();
+        btn.disabled = false;
+        btn.innerHTML =
+          '<svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:#fff;fill:none;stroke-width:2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> บันทึก';
+        if (result.ok) {
+          closeEditModal();
+          if (editType === "course") await loadCoursesTable();
+          else loadStudentsTable();
+        } else {
+          alert("เกิดข้อผิดพลาด: " + result.error);
+        }
+      }
+
+      function closeEditModal() {
+        document.getElementById("edit-modal-overlay").classList.remove("open");
+        editContext = null;
+      }
+      document
+        .getElementById("edit-modal-overlay")
+        .addEventListener("click", (e) => {
+          if (e.target === document.getElementById("edit-modal-overlay"))
+            closeEditModal();
+        });
+
+      async function loadActiveCoursesAdmin() {
+        const area = document.getElementById("admin-content-area");
+        area.innerHTML =
+          '<div style="color:var(--text3);padding:2rem;font-size:13px;">กำลังโหลด...</div>';
+
+        const res = await fetch("backend/active_courses.php?action=list");
+        const result = await res.json();
+        if (!result.ok) {
+          area.innerHTML = `<div style="color:var(--red);padding:2rem">❌ ${result.error}</div>`;
+          return;
+        }
+
+        area.innerHTML = `
+<div class="admin-page-title">
+  <h2>เปิดรับสมัครคอร์ส</h2>
+</div>
+<div style="margin-bottom:1rem">
+  <button class="btn-sm btn-primary" id="btn-sync-jotform" onclick="syncJotform()">
+    <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:#fff;fill:none;stroke-width:2">
+      <polyline points="23 4 23 10 17 10"/>
+      <polyline points="1 20 1 14 7 14"/>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+    </svg>Sync to JotForm
+  </button>
+  <span id="sync-status" style="margin-left:10px;font-size:12px;color:var(--text3)"></span>
+</div>
+<div class="table-card">
+  <table class="data-table">
+    <thead><tr>
+      <th>ID</th><th>ชื่อคอร์ส</th><th>ปี พ.ศ.</th><th>เปิดรับสมัคร</th>
+    </tr></thead>
+    <tbody>
+      ${result.data
+        .map(
+          (r) => `<tr>
+        <td class="cell-id">${r.id}</td>
+        <td><strong>${escHtml(r.short_name)}</strong></td>
+        <td>${r.year_be || "—"}</td>
+        <td>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" ${r.is_active ? "checked" : ""}
+              onchange="toggleActiveCourse(${r.id}, this.checked)"
+              style="width:16px;height:16px;cursor:pointer">
+            <span style="font-size:12px;color:${r.is_active ? "var(--green)" : "var(--text3)"}">
+              ${r.is_active ? "เปิดรับสมัคร" : "ปิด"}
+            </span>
+          </label>
+        </td>
+      </tr>`,
+        )
+        .join("")}
+    </tbody>
+  </table>
+</div>`;
+      }
+
+      async function toggleActiveCourse(courseId, active) {
+        const fd = new FormData();
+        fd.append("action", "toggle");
+        fd.append("course_id", courseId);
+        fd.append("active", active);
+        const res = await fetch("backend/active_courses.php", {
+          method: "POST",
+          body: fd,
+        });
+        const result = await res.json();
+        if (!result.ok) alert("เกิดข้อผิดพลาด: " + result.error);
+      }
+
+      async function syncJotform() {
+        const btn = document.getElementById("btn-sync-jotform");
+        const status = document.getElementById("sync-status");
+        btn.disabled = true;
+        status.textContent = "กำลัง Sync...";
+        try {
+          const res = await fetch(
+            "backend/active_courses.php?action=sync_jotform",
+          );
+          const result = await res.json();
+          status.textContent = result.ok
+            ? "✅ Sync สำเร็จ (" +
+              (result.synced_courses || []).length +
+              " คอร์ส)"
+            : "❌ " + (result.error || "Sync ไม่สำเร็จ");
+        } catch (err) {
+          status.textContent = "❌ เกิดข้อผิดพลาด";
+        }
+        btn.disabled = false;
+        setTimeout(() => (status.textContent = ""), 5000);
+      }
+
+      function footerAdminAction() {
+        const isAdmin = sessionStorage.getItem("is_admin") === "true";
+        if (isAdmin) adminLogout();
+        else openLoginModal();
+      }
+
+      function escHtml(str) {
+        return String(str || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+    </script>
+  </body>
+</html>
