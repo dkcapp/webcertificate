@@ -13,10 +13,10 @@
 4. [โครงสร้างไฟล์ + คำอธิบายทีละไฟล์](#โครงสร้างไฟล์--คำอธิบายทีละไฟล์)
 5. [โครงสร้างฐานข้อมูล](#โครงสร้างฐานข้อมูล)
 6. [Data Flow แต่ละสถานการณ์](#data-flow-แต่ละสถานการณ์)
-7. [การตั้งค่าที่สำคัญ](#การตั้งค่าที่สำคัญ)
-8. [ข้อจำกัดและวิธีแก้ที่ใช้อยู่](#ข้อจำกัดและวิธีแก้ที่ใช้อยู่)
-9. [ปัญหาที่เคยเจอ และวิธีแก้ (Troubleshooting Log)](#ปัญหาที่เคยเจอ-และวิธีแก้-troubleshooting-log)
-10. [ความปลอดภัย — สิ่งที่ควรทำต่อ](#ความปลอดภัย--สิ่งที่ควรทำต่อ)
+7. [วิธีรันโปรเจกต์บนเครื่องตัวเอง (Local Setup)](#วิธีรันโปรเจกต์บนเครื่องตัวเอง-local-setup)
+8. [Environment Variables ที่ต้องตั้งค่า](#environment-variables-ที่ต้องตั้งค่า)
+9. [ข้อจำกัดและวิธีแก้ที่ใช้อยู่](#ข้อจำกัดและวิธีแก้ที่ใช้อยู่)
+10. [ปัญหาที่เคยเจอ และวิธีแก้ (Troubleshooting Log)](#ปัญหาที่เคยเจอ-และวิธีแก้-troubleshooting-log)
 11. [ประวัติการพัฒนา](#ประวัติการพัฒนา)
 
 ---
@@ -40,9 +40,9 @@
 
 ## สถาปัตยกรรมระบบ (System Architecture)
 
-จุดสำคัญของสถาปัตยกรรมนี้คือ **แยกตามทิศทางการเชื่อมต่อ**: ส่วนไหนต้อง "รับ" การเชื่อมต่อจากภายนอกอินเทอร์เน็ต (ต้องมี public URL) กับส่วนไหนแค่ "เชื่อมต่อออกไปหา" บริการอื่น (รันจากที่ไหนก็ได้)
+![System Architecture Diagram](docs/architecture-diagram.png)
 
-![alt text](image.png)
+จุดสำคัญของสถาปัตยกรรมนี้คือ **แยกตามทิศทางการเชื่อมต่อ**: ส่วนไหนต้อง "รับ" การเชื่อมต่อจากภายนอกอินเทอร์เน็ต (ต้องมี public URL) กับส่วนไหนแค่ "เชื่อมต่อออกไปหา" บริการอื่น (รันจากที่ไหนก็ได้)
 
 ### ทำไมต้องออกแบบแบบนี้ (เหตุผลเชิงสถาปัตยกรรม)
 
@@ -51,6 +51,24 @@
 | ทำไมต้องมี public hosting (Render) ทั้งที่คนใช้จริงอยู่แค่ในบริษัท? | เพราะ **JotForm ต้องยิง Webhook เข้ามาหา `jotform_webhook.php` ได้** — นี่คือ "ขาเข้า" (inbound) จากอินเทอร์เน็ตภายนอก server ที่อยู่หลัง firewall บริษัท (intranet-only) จะไม่มีทางถูกเรียกถึงได้เลย |
 | ทำไม PHP เชื่อมกับ Neon ได้จากทุกที่ (ทั้ง localhost และ Render)? | เพราะการเชื่อมต่อไปหา Neon เป็น **"ขาออก" (outbound)** — server เราเป็นฝ่ายโทรออกไปหา Neon เอง ไม่ว่าจะรันจากที่ไหนก็ทำได้ตราบใดที่มี internet และ credential ถูกต้อง |
 | ทำไมไม่ใช้ Google Apps Script เหมือนเดิม? | ระบบเดิมใช้ Apps Script เป็น "ตัวกลางที่มี public URL ฟรีจาก Google" คอยรับ Webhook แทน แล้วค่อยต่อไปหา Supabase อีกที ปัจจุบันตัดตัวกลางนี้ออก ให้ PHP ของเรารับ Webhook เองตรง ๆ ลดจุดเชื่อมต่อที่ต้องดูแล |
+
+### สถาปัตยกรรมภายในฝั่ง Backend
+
+โค้ดฝั่ง PHP แบ่งเป็น 3 ชั้นตามหลัก separation of concerns:
+
+```
+ไฟล์ endpoint (admin_api.php, api.php, active_courses.php, jotform_webhook.php)
+        │  รับ HTTP request, validate input เบื้องต้น, ตอบ JSON กลับ
+        ▼
+Repository layer (backend/lib/CourseRepository.php, StudentRepository.php)
+        │  รวม SQL ทั้งหมดไว้ที่เดียว ไม่ปนกับ HTTP handling
+        ▼
+Database (Neon PostgreSQL)
+```
+
+พร้อมด้วย 2 ไฟล์ shared ที่ endpoint ทุกตัวเรียกใช้ร่วมกัน:
+- **`backend/lib/require_admin.php`** — middleware เช็คสิทธิ์ admin กลาง ใช้ที่เดียวไม่ต้องเขียนซ้ำทุกไฟล์
+- **`backend/lib/error_handler.php`** — จัดการ error กลาง log รายละเอียดจริงไว้ฝั่ง server เท่านั้น ส่งข้อความทั่วไปกลับไปหา client (ไม่เผยรายละเอียด database ให้ผู้ไม่หวังดี)
 
 ---
 
@@ -61,7 +79,7 @@
 | **Frontend** | HTML + CSS + Vanilla JavaScript (ไฟล์เดียว `index.html`) | หน้าดาวน์โหลดใบประกาศ + หน้า Admin Panel |
 | **สร้างภาพใบประกาศ** | [html2canvas](https://html2canvas.hertzen.com/) | แปลง HTML เป็นไฟล์ภาพ PNG ให้ดาวน์โหลด |
 | **QR Code** | [qrcodejs](https://github.com/davidshimjs/qrcodejs) | สร้าง QR Code บนใบประกาศ |
-| **Backend** | PHP 8.2 (ไม่ใช้ framework, ใช้ PDO ตรง ๆ) | ประมวลผล API ทั้งหมด |
+| **Backend** | PHP 8.2 (ไม่ใช้ framework, ใช้ PDO ตรง ๆ) | ประมวลผล API ทั้งหมด แบ่งเป็น Controller + Repository layer |
 | **Database** | [Neon](https://neon.tech) — PostgreSQL แบบ Serverless | เก็บข้อมูลหลักสูตรและผู้เรียนทั้งหมด |
 | **Hosting** | [Render](https://render.com) — Web Service แบบ Docker (แผนฟรี) | รันเว็บ PHP ให้มี public URL |
 | **Container** | Docker (`php:8.2-apache` + extension `pdo_pgsql`) | กำหนด environment ให้ Render รันได้ตรงตามที่ต้องการ |
@@ -79,82 +97,84 @@ webcertificate/
 ├── logo.png, main1.png, line-qr.png
 ├── .gitignore
 │
+├── docs/
+│   └── architecture-diagram.png
+│
 ├── backend/
 │   ├── auth.php
 │   ├── api.php
 │   ├── admin_api.php
 │   ├── active_courses.php
-│   └── jotform_webhook.php
+│   ├── jotform_webhook.php
+│   └── lib/
+│       ├── require_admin.php
+│       ├── error_handler.php
+│       ├── CourseRepository.php
+│       └── StudentRepository.php
 │
 └── database/
     ├── schema.sql
+    ├── seed.sql
     └── config.php
 ```
 
 ### `Dockerfile`
-ตั้งค่า container ที่ Render ใช้รันเว็บ:
-- ใช้ image ตั้งต้น `php:8.2-apache`
-- ติดตั้ง `pdo_pgsql` extension (จำเป็นมากสำหรับต่อ Neon/Postgres — ถ้าไม่มีตัวนี้เชื่อมต่อ database ไม่ได้เลย)
-- คัดลอกโค้ดทั้งโปรเจกต์เข้า `/var/www/html/`
-- ตั้งให้ Apache ฟัง port ที่ Render กำหนดผ่าน environment variable `PORT` (Render ไม่ใช้ port 80 ตายตัวเหมือน server ทั่วไป)
+ตั้งค่า container ที่ Render ใช้รันเว็บ: ใช้ image ตั้งต้น `php:8.2-apache`, ติดตั้ง `pdo_pgsql` extension (จำเป็นสำหรับต่อ Neon), คัดลอกโค้ดเข้า `/var/www/html/`, ตั้งให้ Apache ฟัง port ที่ Render กำหนดผ่าน environment variable `PORT`
 
 ### `index.html`
-ไฟล์เดียวที่รวมทั้งหน้า UI ทั้งหมด แบ่งเป็น 2 ส่วนหลักที่สลับกันด้วยแท็บ (`switchTab()`):
-- **`#view-download`** — หน้าดาวน์โหลดใบประกาศ (public) มี dropdown เลือกปี/หลักสูตร/ชื่อ, พรีวิวใบประกาศแบบ real-time, สไลเดอร์ปรับตำแหน่งข้อความ, ปุ่มดาวน์โหลด PNG ผ่าน html2canvas
-- **`#admin-data-view`** — หน้า Admin (ต้อง login ก่อนถึงจะเห็นแท็บนี้) แบ่งเป็น 3 เมนูย่อย: คอร์สทั้งหมด / รายชื่อผู้เรียน / เปิดรับสมัคร
+ไฟล์เดียวที่รวมทั้งหน้า UI ทั้งหมด แบ่งเป็น 2 ส่วนหลักที่สลับกันด้วยแท็บ: หน้าดาวน์โหลดใบประกาศ (public) และหน้า Admin Panel (ต้อง login)
 
-โครงสร้าง JavaScript ภายในแบ่งเป็น 3 `<script>` blocks: (1) ตรรกะหน้าดาวน์โหลด, (2) ระบบ login/logout, (3) ตรรกะ admin panel ทั้งหมด (ตาราง, modal แก้ไข, sync)
+### `backend/lib/require_admin.php`
+Middleware กลาง — เริ่ม session, ตั้ง response header เป็น JSON, เช็คว่า login เป็น admin อยู่ไหม ถ้าไม่ใช่ตอบ 403 ทันที ทุกไฟล์ endpoint ที่ต้องการสิทธิ์ admin (`admin_api.php`, `active_courses.php`) เรียกใช้ไฟล์นี้แค่บรรทัดเดียวแทนเขียนโค้ดเช็คซ้ำ
+
+### `backend/lib/error_handler.php`
+ฟังก์ชันกลาง `send_error_response()` — log รายละเอียด exception จริงไว้ฝั่ง server ผ่าน `error_log()` (ดูได้ที่ Render → Logs) แต่ส่งข้อความทั่วไปกลับไปหา client เท่านั้น ป้องกันไม่ให้รายละเอียดโครงสร้าง database รั่วไหลออกไป
+
+### `backend/lib/CourseRepository.php`
+รวม SQL ทั้งหมดที่เกี่ยวกับตาราง `courses` และ `active_courses` ไว้ที่เดียว (list, add, update, delete, ค้นหาจากชื่อ, เปิด/ปิดรับสมัคร) — endpoint files เรียกใช้ผ่าน class นี้แทนเขียน SQL เอง
+
+### `backend/lib/StudentRepository.php`
+รวม SQL ทั้งหมดที่เกี่ยวกับตาราง `students` ไว้ที่เดียว (แบ่งหน้า+ค้นหา+กรอง+เรียงลำดับ, add, update, delete, insert จาก webhook, ดึงรายชื่อทั้งหมดสำหรับหน้า public)
 
 ### `backend/auth.php`
-ระบบ login ของ admin แบบง่าย ใช้ PHP session (`$_SESSION['is_admin']`)
-- `action=login` — เช็ค username/password ตรงกับค่าคงที่ `ADMIN_USER` / `ADMIN_PASS` ที่ฝังในไฟล์ (มี delay 1 วินาทีตอน login ผิดเพื่อกัน brute-force แบบเบื้องต้น)
-- `action=logout` — ทำลาย session
-- `action=check` — เช็คว่า session ปัจจุบัน login อยู่ไหม (เรียกทุกครั้งที่โหลดหน้าเว็บ เพื่อโชว์/ซ่อนแท็บ admin)
-
-⚠️ **ไม่ต้อง login ก็เรียกไฟล์นี้ได้** (เป็นปกติ เพราะเป็นทางเข้าสู่ระบบ) แต่ทุก endpoint อื่นที่เป็นของ admin (`admin_api.php`, `active_courses.php`) จะเช็ค `$_SESSION['is_admin']` ก่อนเสมอ
+ระบบ login ของ admin ใช้ PHP session (`$_SESSION['is_admin']`) อ่าน username/password จาก environment variables (`ADMIN_USER`, `ADMIN_PASS`) — `action=login`, `action=logout`, `action=check`
 
 ### `backend/api.php`
-Endpoint สาธารณะ (ไม่ต้อง login) ที่หน้าดาวน์โหลดใบประกาศเรียกใช้ตอนโหลดหน้าเว็บ — ดึงรายชื่อผู้เรียน**ทั้งหมด**พร้อมข้อมูลคอร์สที่ join กันไว้แล้ว จัดรูปแบบ JSON ให้มีโครงสร้างคล้าย Airtable เดิม (คีย์ `fields` เป็นชื่อคอลัมน์ภาษาไทย) เพื่อให้โค้ด JavaScript ฝั่ง frontend ไม่ต้องแก้อะไรตอนย้ายฐานข้อมูล
+Endpoint สาธารณะ (ไม่ต้อง login) ที่หน้าดาวน์โหลดใบประกาศเรียกใช้ตอนโหลดหน้าเว็บ — ดึงรายชื่อผู้เรียนทั้งหมดผ่าน `StudentRepository::listAllWithCourse()` จัดรูปแบบ JSON คล้าย Airtable เดิม
 
 ### `backend/admin_api.php`
-Endpoint หลักสำหรับ CRUD ทั้งหมดในหน้า Admin (ต้อง login) รวม action ต่อไปนี้:
+Endpoint หลักสำหรับ CRUD ทั้งหมดในหน้า Admin (ต้อง login ผ่าน `require_admin.php`) เป็น thin controller ที่เรียกใช้ `CourseRepository` และ `StudentRepository`:
+
 | Action | หน้าที่ |
 |---|---|
 | `list_courses` | ดึงคอร์สทั้งหมด พร้อมนับจำนวนผู้เรียนต่อคอร์ส |
 | `add_course` / `update_course` / `delete_course` | จัดการหลักสูตร |
-| `list_students` | ดึงรายชื่อผู้เรียนแบบแบ่งหน้า รองรับค้นหา/กรองปี/กรองคอร์ส/เรียงลำดับ (มี whitelist คอลัมน์ป้องกัน SQL Injection ผ่าน `ORDER BY`) |
-| `get_student` | ดึงข้อมูลผู้เรียน 1 คนแบบละเอียด (ใช้ตอนเปิด modal แก้ไข) |
+| `list_students` | ดึงรายชื่อผู้เรียนแบบแบ่งหน้า รองรับค้นหา/กรองปี/กรองคอร์ส/เรียงลำดับ (whitelist คอลัมน์ป้องกัน SQL Injection ผ่าน `ORDER BY`) |
+| `get_student` | ดึงข้อมูลผู้เรียน 1 คนแบบละเอียด |
 | `add_student` / `update_student` / `delete_student` | จัดการรายชื่อผู้เรียน |
 
 ### `backend/active_courses.php`
-Endpoint สำหรับหน้า "เปิดรับสมัคร" (ต้อง login) มี 3 actions:
+Endpoint สำหรับหน้า "เปิดรับสมัคร" (ต้อง login) อ่าน JotForm API Key/Form ID/Field ID จาก environment variables:
+
 | Action | หน้าที่ |
 |---|---|
-| `list` | ดึงคอร์สทั้งหมด พร้อม flag `is_active` ว่าเปิดรับสมัครอยู่ไหม |
-| `toggle` | เปิด/ปิดคอร์ส (insert/delete ในตาราง `active_courses`) |
-| `sync_jotform` | ดึงคอร์สที่เปิดอยู่ทั้งหมดจาก Neon → เรียก **JotForm API โดยตรง** เพื่ออัปเดตตัวเลือกใน dropdown field ของฟอร์มสมัคร (แทนที่การพึ่ง Google Apps Script แบบเดิม) |
+| `list` | ดึงคอร์สทั้งหมด พร้อม flag `is_active` |
+| `toggle` | เปิด/ปิดคอร์ส |
+| `sync_jotform` | ดึงคอร์สที่เปิดอยู่จาก Neon → เรียก JotForm API โดยตรงเพื่ออัปเดตตัวเลือกใน dropdown |
 
 ### `backend/jotform_webhook.php`
-**Endpoint สำคัญที่สุดตัวหนึ่ง** — เป็นจุดเดียวในระบบที่ **ต้องเปิดรับ request จากภายนอกอินเทอร์เน็ตจริง ๆ** (ไม่ต้อง login เพราะ JotForm server เป็นคนเรียก ไม่ใช่คนในบริษัท)
+**Endpoint สำคัญที่สุดตัวหนึ่ง** — จุดเดียวในระบบที่ต้องเปิดรับ request จากภายนอกอินเทอร์เน็ตจริง ๆ (ไม่ต้อง login เพราะ JotForm server เป็นคนเรียก)
 
-ทำงานดังนี้:
-1. รับข้อมูลดิบจาก JotForm ผ่าน field `rawRequest` (เป็น JSON string ที่ต้อง decode อีกที)
-2. แกะฟิลด์ต่าง ๆ ตาม field ID ของฟอร์ม (เช่น `q110_typeA110` = ชื่อ, `q93_input115` = คอร์สที่เลือก)
-3. ค้นหา `course_id` จากชื่อคอร์ส (ต้อง match เป๊ะกับ `short_name` ในตาราง `courses`)
-4. ถ้าหาคอร์สไม่เจอ → ตอบ error ทันที (ป้องกัน insert พังเพราะ `course_id` เป็น `NOT NULL`)
-5. Insert ข้อมูลลงตาราง `students` ผ่าน `RETURNING id` (วิธีที่ถูกต้องสำหรับ Postgres แทนการใช้ `lastInsertId()` แบบ MySQL)
-6. Log ผลลัพธ์ผ่าน `error_log()` เพื่อให้เห็นใน Render Logs (ไม่ใช้การเขียนไฟล์ log เพราะ Render อาจไม่ให้สิทธิ์เขียนไฟล์ในโฟลเดอร์นี้)
+ทำงานดังนี้: รับข้อมูลดิบจาก JotForm ผ่าน field `rawRequest` → แกะฟิลด์ตาม field ID ของฟอร์ม → ค้นหา `course_id` จากชื่อคอร์สผ่าน `CourseRepository::findByShortName()` → ถ้าหาไม่เจอตอบ error ทันที (ป้องกัน insert พังเพราะ `course_id` เป็น `NOT NULL`) → บันทึกผ่าน `StudentRepository::insertFromWebhook()` → log ผลลัพธ์ผ่าน `error_log()`
 
 ### `database/schema.sql`
-คำสั่ง SQL สำหรับสร้างฐานข้อมูลและตารางทั้งหมด — **หมายเหตุ: ไฟล์นี้เขียนด้วย syntax ของ MySQL (`AUTO_INCREMENT`, `ENGINE=InnoDB` ฯลฯ) ซึ่งเป็นของระบบเดิมก่อนย้ายมา Neon (Postgres)** ปัจจุบันตารางจริงใน Neon ถูกสร้าง/ย้ายข้อมูลมาด้วยวิธีอื่นแล้ว ไฟล์นี้จึงเหลือไว้เป็นข้อมูลอ้างอิงโครงสร้างเท่านั้น ไม่ควรรันตรง ๆ กับ Neon (ต้องแปลงเป็น syntax ของ Postgres ก่อน เช่น `SERIAL` แทน `AUTO_INCREMENT`, `COMMENT` ต้องย้ายไปใช้ `COMMENT ON COLUMN` แยกคำสั่ง)
+คำสั่งสร้างตารางทั้งหมด เขียนด้วย **PostgreSQL syntax จริง** (`SERIAL`, `REFERENCES ... ON DELETE CASCADE` ฯลฯ) ตรงกับโครงสร้างที่ใช้งานจริงบน Neon
+
+### `database/seed.sql`
+ข้อมูลตัวอย่างสำหรับ demo/ทดสอบระบบ — **ทุกชื่อ/เบอร์/อีเมลเป็นข้อมูลสมมติทั้งหมด** ใช้รันหลัง `schema.sql` เพื่อทดลองใช้งานระบบโดยไม่ต้องพึ่งข้อมูลจริงของบริษัท
 
 ### `database/config.php`
-เก็บค่าการเชื่อมต่อ Neon (host, port, database name, username, password) และฟังก์ชัน `getDB()` ที่คืนค่า PDO connection แบบ singleton (เชื่อมครั้งเดียวต่อ request แล้ว reuse) ทุกไฟล์ backend เรียก `require_once` ไฟล์นี้เพื่อขอ connection
-
-⚠️ ไฟล์นี้มี password ฝังอยู่ตรง ๆ — ดูหัวข้อ [ความปลอดภัย](#ความปลอดภัย--สิ่งที่ควรทำต่อ) ด้านล่าง
-
-### `.gitignore`
-ปัจจุบัน**ไม่ได้กัน `database/config.php` ออกจาก Git แล้ว** (ถูกลบบรรทัดนี้ออกไปตอน deploy ขึ้น Render เพื่อให้ credential ติดไปกับ repo ด้วย เนื่องจาก Render ต้อง build จากโค้ดใน GitHub) — เพราะงั้น **repo ต้องเป็น Private เท่านั้นห้ามเปิด Public เด็ดขาด**
+อ่านค่าการเชื่อมต่อ Neon จาก **Environment Variables** (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`) ไม่มี credential ฝังอยู่ในโค้ดเลย และมีฟังก์ชัน `getDB()` คืนค่า PDO connection แบบ singleton
 
 ---
 
@@ -163,15 +183,15 @@ Endpoint สำหรับหน้า "เปิดรับสมัคร" (
 ### ตาราง `courses`
 | คอลัมน์ | ความหมาย |
 |---|---|
-| `id` | primary key |
-| `long_key` | ชื่อยาว (ใช้ตอนย้ายข้อมูลจาก Airtable เดิม) |
+| `id` | primary key (SERIAL) |
+| `long_key` | ชื่อยาว ต้องไม่ซ้ำกัน (UNIQUE) |
 | `short_name` | ชื่อย่อ — **ใช้ match กับ dropdown ใน JotForm ต้องตรงเป๊ะ** |
-| `training_date` | วันที่อบรม (ข้อความอิสระ เช่น "วันที่ 5-7 พ.ค. 2569") |
+| `training_date` | วันที่อบรม (ข้อความอิสระ) |
 | `year_be` | ปี พ.ศ. ใช้กรอง |
 | `verify_url` | ลิงก์ปลายทางของ QR Code บนใบประกาศ |
 
 ### ตาราง `students`
-เก็บข้อมูลผู้เรียนแต่ละคน ผูกกับหลักสูตรผ่าน `course_id` (Foreign Key, `NOT NULL`) มีฟิลด์ข้อมูลส่วนตัวครบถ้วน (ชื่อ, เบอร์, อีเมล, หน่วยงาน, ตำแหน่ง ฯลฯ)
+เก็บข้อมูลผู้เรียนแต่ละคน ผูกกับหลักสูตรผ่าน `course_id` (Foreign Key, `NOT NULL`, `ON DELETE CASCADE`) มีฟิลด์ข้อมูลส่วนตัวครบถ้วน (ชื่อ, เบอร์, อีเมล, หน่วยงาน, ตำแหน่ง ฯลฯ)
 
 ### ตาราง `active_courses`
 ตารางเชื่อม (junction table) เก็บแค่ `course_id` ที่กำลังเปิดรับสมัครอยู่ — ถ้ามีแถวในนี้แปลว่าคอร์สนั้นเปิดรับสมัคร ถ้าไม่มีแปลว่าปิด
@@ -182,83 +202,116 @@ Endpoint สำหรับหน้า "เปิดรับสมัคร" (
 
 ### 1. ผู้เข้าอบรมดาวน์โหลดใบประกาศ
 ```
-เปิดเว็บ → api.php (ดึงรายชื่อทั้งหมด) → เลือกปี/คอร์ส/ชื่อ (กรองฝั่ง frontend)
+เปิดเว็บ → api.php → StudentRepository::listAllWithCourse() → เลือกปี/คอร์ส/ชื่อ (กรองฝั่ง frontend)
         → พรีวิวใบประกาศ real-time → กด "ดาวน์โหลด" → html2canvas แปลงเป็น PNG
 ```
-ทั้งหมดนี้ทำงานฝั่ง browser ล้วน ๆ หลังจากโหลดข้อมูลมาครั้งแรก ไม่มีการยิง request เพิ่มตอนดาวน์โหลด
 
 ### 2. ผู้สมัครใหม่กรอกฟอร์ม JotForm
 ```
 [ผู้สมัคร] กรอกฟอร์ม + เลือกหลักสูตร → กด Submit
         → JotForm ยิง Webhook (HTTP POST พร้อม field 'rawRequest')
-        → backend/jotform_webhook.php
-        → decode rawRequest, แกะฟิลด์
-        → ค้นหา course_id จาก short_name
-        → INSERT INTO students ... RETURNING id
+        → jotform_webhook.php → decode rawRequest, แกะฟิลด์
+        → CourseRepository::findByShortName() หา course_id
+        → StudentRepository::insertFromWebhook()
         → ตอบกลับ {ok:true, id:...} ให้ JotForm
 ```
 
 ### 3. Admin เปิด/ปิดคอร์สแล้ว Sync ไปยัง JotForm
 ```
-[Admin] ติ๊กเปิด/ปิดคอร์ส → active_courses.php?action=toggle (insert/delete active_courses)
+[Admin] ติ๊กเปิด/ปิดคอร์ส → active_courses.php?action=toggle → CourseRepository::activate()/deactivate()
 [Admin] กด "Sync to JotForm" → active_courses.php?action=sync_jotform
-        → SELECT short_name จาก active_courses join courses
+        → CourseRepository::listActiveShortNames()
         → รวมชื่อคอร์สด้วย '|' → เรียก JotForm API (POST /form/{id}/question/{field})
         → JotForm อัปเดตตัวเลือกใน dropdown ของฟอร์มจริง
 ```
 
 ---
 
-## การตั้งค่าที่สำคัญ
+## วิธีรันโปรเจกต์บนเครื่องตัวเอง (Local Setup)
 
-| ค่า | อยู่ที่ไฟล์ | หมายเหตุ |
+1. **เตรียม PostgreSQL database** — ใช้ [Neon](https://neon.tech) (ฟรี) หรือ Postgres ที่ติดตั้งเองก็ได้
+
+2. **สร้างตารางและข้อมูลตัวอย่าง**
+   ```
+   psql "postgresql://<user>:<pass>@<host>/<dbname>" -f database/schema.sql
+   psql "postgresql://<user>:<pass>@<host>/<dbname>" -f database/seed.sql
+   ```
+
+3. **ตั้งค่า Environment Variables** (ดูรายการทั้งหมดที่หัวข้อถัดไป) — ถ้ารันด้วย PHP built-in server บนเครื่อง สามารถตั้งผ่าน `.env` + ตัว loader เอง หรือ export ผ่าน terminal ก่อนรัน เช่น:
+   ```bash
+   export DB_HOST=your-neon-host
+   export DB_PORT=5432
+   export DB_NAME=neondb
+   export DB_USER=your-user
+   export DB_PASS=your-password
+   export ADMIN_USER=admin
+   export ADMIN_PASS=your-chosen-password
+   ```
+
+4. **รันเว็บด้วย PHP built-in server**
+   ```
+   php -S localhost:8000
+   ```
+   เปิด `http://localhost:8000` — ควรเห็นข้อมูลตัวอย่างจาก `seed.sql`
+
+5. **(ทางเลือก) รันผ่าน Docker เหมือนบน Render**
+   ```
+   docker build -t webcertificate .
+   docker run -p 8080:10000 -e PORT=10000 --env-file .env webcertificate
+   ```
+
+> หมายเหตุ: ฟีเจอร์ที่พึ่งพา JotForm (`active_courses.php?action=sync_jotform`, `jotform_webhook.php`) จะทำงานได้เต็มรูปแบบก็ต่อเมื่อตั้งค่า `JOTFORM_API_KEY`/`JOTFORM_FORM_ID`/`JOTFORM_FIELD_ID` ให้ตรงกับฟอร์มจริงของคุณเองด้วย
+
+---
+
+## Environment Variables ที่ต้องตั้งค่า
+
+| ตัวแปร | คำอธิบาย | ใช้ในไฟล์ |
 |---|---|---|
-| Neon database credentials | `database/config.php` | host / port / dbname / user / password |
-| JotForm API Key | `backend/active_courses.php` | `JOTFORM_API_KEY` |
-| JotForm Form ID | `backend/active_courses.php` | `JOTFORM_FORM_ID` = `261701468554460` |
-| JotForm Field ID (dropdown คอร์ส) | `backend/active_courses.php` | `JOTFORM_FIELD_ID` = `93` |
-| Admin username/password | `backend/auth.php` | `ADMIN_USER` / `ADMIN_PASS` |
-| Webhook ปลายทางใน JotForm | ตั้งที่ JotForm → Settings → Integrations → Webhooks | ต้องชี้ไปที่ `https://webcertificate.onrender.com/backend/jotform_webhook.php` |
+| `DB_HOST` | Host ของ Neon database | `database/config.php` |
+| `DB_PORT` | Port (ปกติ `5432`) | `database/config.php` |
+| `DB_NAME` | ชื่อ database | `database/config.php` |
+| `DB_USER` | Username | `database/config.php` |
+| `DB_PASS` | Password | `database/config.php` |
+| `ADMIN_USER` | Username สำหรับ login admin | `backend/auth.php` |
+| `ADMIN_PASS` | Password สำหรับ login admin | `backend/auth.php` |
+| `JOTFORM_API_KEY` | API Key จาก JotForm account | `backend/active_courses.php` |
+| `JOTFORM_FORM_ID` | ID ของฟอร์มสมัครเรียนใน JotForm | `backend/active_courses.php` |
+| `JOTFORM_FIELD_ID` | ID ของ field dropdown เลือกคอร์สในฟอร์ม | `backend/active_courses.php` |
+
+บน Render ตั้งค่าได้ที่ Dashboard → service → Environment tab
 
 ---
 
 ## ข้อจำกัดและวิธีแก้ที่ใช้อยู่
 
 ### Render แผนฟรี "หลับ" หลัง idle 15 นาที
-- เมื่อไม่มีคนเข้าใช้ 15 นาที Render จะปิด container ชั่วคราว คนแรกที่กลับมาเข้าเว็บต้องรอ ~30-50 วินาทีให้ container ตื่น
-- **วิธีแก้ที่ใช้อยู่ตอนนี้:** ตั้ง **UptimeRobot** ให้ปิง `https://webcertificate.onrender.com/` ทุก 5 นาที ทำให้เว็บไม่เคย idle ครบ 15 นาที จึงไม่เคยหลับ
-- ถ้าต้องการความเสถียรแบบไม่ต้องพึ่งวิธีนี้ ทางเลือกคืออัปเกรด Render เป็นแผนเสียเงิน (Starter ~$7/เดือน) ซึ่งไม่มีการ sleep เลย
+เมื่อไม่มีคนเข้าใช้ 15 นาที Render จะปิด container ชั่วคราว คนแรกที่กลับมาเข้าเว็บต้องรอ ~30-50 วินาทีให้ container ตื่น **วิธีแก้ที่ใช้อยู่:** ตั้ง **UptimeRobot** ปิง `https://webcertificate.onrender.com/` ทุก 5 นาที ทำให้เว็บไม่เคย idle ครบ 15 นาที
 
 ### Admin session หลุดบ่อย
-เกิดจากเหตุผลเดียวกับข้างบน — ทุกครั้งที่ container restart (ก่อนมี UptimeRobot) ไฟล์ session จะหายไปด้วย ตอนนี้ที่ไม่ค่อย sleep แล้วปัญหานี้ควรเกิดน้อยลงมาก
+เกิดจากเหตุผลเดียวกับข้างบน — container restart ทำให้ไฟล์ session หายไปด้วย ตอนนี้ที่ไม่ค่อย sleep แล้วปัญหานี้ควรเกิดน้อยลงมาก
 
 ---
 
 ## ปัญหาที่เคยเจอ และวิธีแก้ (Troubleshooting Log)
 
-บันทึกไว้เผื่อเจอปัญหาเดิมซ้ำในอนาคต:
-
 | ปัญหา | สาเหตุ | วิธีแก้ |
 |---|---|---|
-| `Unexpected token '<', "..." is not valid JSON` ตอนเปิดเว็บครั้งแรกบน Render | `.gitignore` กัน `database/config.php` ไว้ ทำให้ไฟล์ config ไม่ถูก push ขึ้น GitHub → `require_once` หาไฟล์ไม่เจอ → PHP โยน Fatal Error เป็นหน้า HTML แทน JSON | ลบบรรทัด `database/config.php` ออกจาก `.gitignore` แล้ว commit+push ไฟล์ config เข้าไปด้วย (ต้องเป็น Private repo) |
-| `❌ Unauthorized` หลัง deploy โค้ดใหม่ทั้งที่เพิ่ง login | Container restart ตอน deploy ทำให้ PHP session (เก็บเป็นไฟล์ใน container) หายไปหมด | Login ใหม่อีกครั้ง |
-| `POST /backend/jotform_webhook.php` ได้ 500 ทุกครั้งที่ JotForm ยิงมาจริง | `SQLSTATE[23505]: Unique violation ... duplicate key value violates unique constraint "students_pkey"` — ตอนย้ายข้อมูลจาก Supabase มา Neon โดย insert พร้อม id เดิม แต่ไม่ได้อัปเดต sequence (auto-increment counter) ให้ตรงกับข้อมูลจริง | รัน SQL รีเซ็ต sequence ให้ตรงกับ `MAX(id)` ปัจจุบันของตาราง (`SELECT setval(pg_get_serial_sequence('students','id'), (SELECT MAX(id) FROM students))`) ทำครั้งเดียวจบ ควรทำแบบเดียวกันกับตาราง `courses` ด้วย |
-| เขียน log ไฟล์ (`jotform_webhook.log`) ไม่ได้ ขึ้น 404 ตลอด | โฟลเดอร์ `backend/` บน Render (ที่ build จาก Docker image) ไม่มีสิทธิ์เขียนไฟล์ใหม่ให้ PHP process | เปลี่ยนมาใช้ `error_log()` แทนการเขียนไฟล์ — log จะไปโผล่ที่ Render → Logs โดยตรง ไม่ต้องพึ่ง filesystem เขียนได้ |
-| เว็บดับ/โหลดช้ามากเป็นระยะ | พฤติกรรมปกติของ Render แผนฟรี (spin down เมื่อ idle เกิน 15 นาที) | ตั้ง UptimeRobot ปิงทุก 5 นาที (ดูหัวข้อข้อจำกัดด้านบน) |
-
----
-
-## ความปลอดภัย — สิ่งที่ควรทำต่อ
-
-ระบบนี้ทำให้ "ใช้งานได้" เป็นเป้าหมายหลักในการพัฒนารอบนี้ แต่ยังมีจุดที่ควรปรับปรุงเพื่อความปลอดภัยในระยะยาว:
-
-- [ ] **Neon database password ฝังอยู่ตรง ๆ ใน `database/config.php`** ซึ่ง commit เข้า Git แล้ว — ต้องมั่นใจว่า repo เป็น **Private ตลอดเวลา** ไม่มีวันเปิด Public เด็ดขาด แนะนำให้ย้ายไปใช้ **Environment Variables** ผ่านหน้า Render Dashboard แทนการฝังในโค้ดในอนาคต
-- [ ] **JotForm API Key ฝังอยู่ตรง ๆ ใน `active_courses.php`** — ควรย้ายไป Environment Variable เช่นกัน
-- [ ] **Admin password เป็น `123`** ในไฟล์ `auth.php` — ควรเปลี่ยนเป็นรหัสผ่านที่คาดเดายากกว่านี้ก่อนใช้งานจริงจัง และพิจารณาเก็บเป็น hash แทน plaintext
-- [ ] **`jotform_webhook.php` ไม่มีการยืนยันตัวตนใด ๆ เลย** (ใครก็ยิง POST มาปลอมข้อมูลเข้าระบบได้ถ้ารู้ URL) — ควรเพิ่ม secret token ตรวจสอบใน request หรือเช็ค IP ของ JotForm ในอนาคต
+| `Unexpected token '<', "..." is not valid JSON` ตอนเปิดเว็บครั้งแรกบน Render | `.gitignore` กัน `database/config.php` ไว้ ทำให้ไฟล์ config ไม่ถูก push ขึ้น GitHub → `require_once` หาไฟล์ไม่เจอ → PHP โยน Fatal Error เป็นหน้า HTML แทน JSON | ลบบรรทัด `database/config.php` ออกจาก `.gitignore` (ก่อนจะย้ายไปใช้ environment variables ในภายหลัง) |
+| `❌ Unauthorized` หลัง deploy โค้ดใหม่ทั้งที่เพิ่ง login | Container restart ตอน deploy ทำให้ PHP session หายไปหมด | Login ใหม่อีกครั้ง |
+| `POST /backend/jotform_webhook.php` ได้ 500 ทุกครั้งที่ JotForm ยิงมาจริง | `SQLSTATE[23505]: Unique violation ... duplicate key value violates unique constraint "students_pkey"` — ตอนย้ายข้อมูลจาก Supabase มา Neon โดย insert พร้อม id เดิม แต่ไม่ได้อัปเดต sequence ให้ตรงกับข้อมูลจริง | รัน SQL รีเซ็ต sequence ให้ตรงกับ `MAX(id)` ปัจจุบันของตาราง (`SELECT setval(pg_get_serial_sequence('students','id'), (SELECT MAX(id) FROM students))`) |
+| เขียน log ไฟล์ไม่ได้ ขึ้น 404 ตลอด | โฟลเดอร์ `backend/` บน Render ไม่มีสิทธิ์เขียนไฟล์ใหม่ให้ PHP process | เปลี่ยนมาใช้ `error_log()` แทนการเขียนไฟล์ — log จะไปโผล่ที่ Render → Logs โดยตรง |
+| เว็บดับ/โหลดช้ามากเป็นระยะ | พฤติกรรมปกติของ Render แผนฟรี (spin down เมื่อ idle เกิน 15 นาที) | ตั้ง UptimeRobot ปิงทุก 5 นาที |
+| Database error ชั่วคราวทั้งที่โค้ดไม่ได้แก้อะไร | Neon เกิด incident ฝั่ง infrastructure เอง (เช็คได้ที่ [neonstatus.com](https://neonstatus.com)) | รอ Neon แก้ปัญหาฝั่งเขาเสร็จ ไม่ใช่ปัญหาฝั่งโค้ด |
 
 ---
 
 ## ประวัติการพัฒนา
 
-ระบบเดิมใช้ **Supabase (PostgreSQL)** ร่วมกับ **Google Apps Script** เป็นตัวกลางเชื่อมระหว่าง JotForm กับฐานข้อมูล ปัจจุบันได้ย้ายฐานข้อมูลทั้งหมดมาที่ **Neon** และตัดการพึ่งพา Google Apps Script ออก โดยให้ JotForm ยิง Webhook มาที่ PHP backend ของระบบเองโดยตรง ทำให้โครงสร้างเรียบง่ายขึ้น มีจุดเชื่อมต่อน้อยลง และดูแลรักษาง่ายกว่าเดิม ส่วนปัญหาเว็บ "หลับ" ของ hosting แผนฟรีก็แก้ด้วย UptimeRobot ทำให้ใช้งานได้ต่อเนื่องโดยไม่ต้องเสียค่าใช้จ่ายเพิ่ม
+ระบบเดิมใช้ **Supabase (PostgreSQL)** ร่วมกับ **Google Apps Script** เป็นตัวกลางเชื่อมระหว่าง JotForm กับฐานข้อมูล ต่อมาได้ย้ายฐานข้อมูลทั้งหมดมาที่ **Neon** และตัดการพึ่งพา Google Apps Script ออก โดยให้ JotForm ยิง Webhook มาที่ PHP backend ของระบบเองโดยตรง
+
+หลังจากนั้นได้ปรับปรุงคุณภาพโค้ดเพิ่มอีก 2 รอบ:
+- **ย้าย credential ทั้งหมด** (database password, JotForm API key, admin password) ออกจากโค้ด ไปเป็น **Environment Variables** พร้อมล้าง git history เก่าที่เคยมี credential ฝังอยู่
+- **Refactor โครงสร้าง backend** แยกเป็น Controller + Repository layer, สร้าง middleware กลางสำหรับเช็คสิทธิ์ admin, และทำ error handler กลางที่ไม่เปิดเผยรายละเอียด database ให้ client เห็น
+
+ส่วนปัญหาเว็บ "หลับ" ของ hosting แผนฟรีก็แก้ด้วย UptimeRobot ทำให้ใช้งานได้ต่อเนื่องโดยไม่ต้องเสียค่าใช้จ่ายเพิ่ม
