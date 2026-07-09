@@ -40,7 +40,7 @@
 
 ## สถาปัตยกรรมระบบ (System Architecture)
 
-![System Architecture Diagram](docs/architecture-diagram.png)
+![System Architecture Diagram](/assets/docs/architecture-diagram.png)
 
 จุดสำคัญของสถาปัตยกรรมนี้คือ **แยกตามทิศทางการเชื่อมต่อ**: ส่วนไหนต้อง "รับ" การเชื่อมต่อจากภายนอกอินเทอร์เน็ต (ต้องมี public URL) กับส่วนไหนแค่ "เชื่อมต่อออกไปหา" บริการอื่น (รันจากที่ไหนก็ได้)
 
@@ -92,30 +92,37 @@ Database (Neon PostgreSQL)
 
 ```
 webcertificate/
-├── Dockerfile
-├── index.html
-├── logo.png, main1.png, line-qr.png
-├── .gitignore
-│
-├── docs/
-│   └── architecture-diagram.png
-│
-├── backend/
-│   ├── auth.php
-│   ├── api.php
-│   ├── admin_api.php
-│   ├── active_courses.php
-│   ├── jotform_webhook.php
-│   └── lib/
-│       ├── require_admin.php
-│       ├── error_handler.php
-│       ├── CourseRepository.php
-│       └── StudentRepository.php
-│
-└── database/
-    ├── schema.sql
-    ├── seed.sql
-    └── config.php
+│   .gitignore
+│   Dockerfile
+│   index.html
+│   README.md
+│   
+├───assets
+│   ├───docs
+│   │       architecture-diagram.png
+│   │       
+│   └───images
+│           line-qr.png
+│           logo.png
+│           main1.png
+│           
+├───backend
+│   │   active_courses.php
+│   │   admin_api.php
+│   │   api.php
+│   │   auth.php
+│   │   jotform_webhook.php
+│   │   
+│   └───lib
+│           CourseRepository.php
+│           error_handler.php
+│           require_admin.php
+│           StudentRepository.php
+│           
+└───database
+        config.php
+        schema.sql
+        seed.sql
 ```
 
 ### `Dockerfile`
