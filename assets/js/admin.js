@@ -42,6 +42,7 @@ function adminNav(section) {
   if (section === "courses") loadCoursesTable();
   else if (section === "students") loadStudentsTable();
   else if (section === "active") loadActiveCoursesAdmin();
+  else if (section === "airtable") loadAirtableImportPage();
 }
 
 let courseTableData = [];
@@ -716,4 +717,192 @@ function escHtml(str) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// ===== นำเข้าข้อมูลจาก Airtable =====
+
+let airtableRows = [];
+let airtableSelected = new Set();
+
+function loadAirtableImportPage() {
+  const area = document.getElementById("admin-content-area");
+  area.innerHTML = `
+<div class="admin-page-title">
+  <h2>นำเข้าข้อมูลจาก Airtable</h2>
+</div>
+<p style="font-size:13px;color:var(--text3);margin-bottom:1rem;line-height:1.7">
+  ดึงรายชื่อผู้สมัครจากระบบ Airtable เดิม เปรียบเทียบกับข้อมูลที่มีอยู่แล้วในระบบนี้
+  แล้วเลือกนำเข้าเฉพาะรายการที่ต้องการ (รายการที่เคยนำเข้าแล้วจะถูกทำเครื่องหมายไว้อัตโนมัติ ไม่สามารถเลือกซ้ำได้)
+</p>
+<button class="btn-sm btn-primary" id="btn-airtable-fetch" onclick="fetchAirtablePreview()">
+  <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:#fff;fill:none;stroke-width:2">
+    <polyline points="23 4 23 10 17 10"/>
+    <polyline points="1 20 1 14 7 14"/>
+    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+  </svg>ดึงข้อมูลจาก Airtable
+</button>
+<div id="airtable-content" style="margin-top:1.2rem"></div>`;
+}
+
+async function fetchAirtablePreview() {
+  const btn = document.getElementById("btn-airtable-fetch");
+  const content = document.getElementById("airtable-content");
+  btn.disabled = true;
+  btn.textContent = "กำลังดึงข้อมูล...";
+  content.innerHTML =
+    '<div style="color:var(--text3);padding:1rem;font-size:13px;">กำลังโหลด...</div>';
+
+  try {
+    const res = await fetch("backend/admin_api.php?action=airtable_preview");
+    const result = await res.json();
+    if (!result.ok) {
+      content.innerHTML = `<div style="color:var(--red);padding:1rem;font-size:13px;">❌ ${result.error}</div>`;
+      return;
+    }
+    airtableRows = result.data;
+    airtableSelected = new Set(
+      airtableRows
+        .filter((r) => !r.already_imported && r.course_found)
+        .map((r) => r.airtable_id),
+    );
+    renderAirtableTable();
+  } catch (e) {
+    content.innerHTML = `<div style="color:var(--red);padding:1rem;font-size:13px;">❌ เชื่อมต่อไม่สำเร็จ: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML =
+      '<svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:#fff;fill:none;stroke-width:2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>ดึงข้อมูลจาก Airtable';
+  }
+}
+
+function renderAirtableTable() {
+  const content = document.getElementById("airtable-content");
+  const newCount = airtableRows.filter((r) => !r.already_imported).length;
+  const importedCount = airtableRows.length - newCount;
+  const noCourseCount = airtableRows.filter(
+    (r) => !r.already_imported && !r.course_found,
+  ).length;
+
+  content.innerHTML = `
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:0.8rem;flex-wrap:wrap">
+  <span class="badge-count">ทั้งหมด ${airtableRows.length} รายการ</span>
+  <span class="badge-count" style="color:var(--green)">ใหม่ ${newCount} รายการ</span>
+  <span class="badge-count" style="color:var(--text3)">เคยนำเข้าแล้ว ${importedCount} รายการ</span>
+  ${noCourseCount > 0 ? `<span class="badge-count" style="color:var(--red)">หาคอร์สไม่เจอ ${noCourseCount} รายการ</span>` : ""}
+  <div style="flex:1"></div>
+  <button class="btn-sm btn-edit" onclick="selectAllAirtable(true)">เลือกทั้งหมด</button>
+  <button class="btn-sm btn-edit" onclick="selectAllAirtable(false)">ไม่เลือกเลย</button>
+  <button class="btn-sm btn-primary" id="btn-airtable-import" onclick="importSelectedAirtable()">
+    นำเข้าที่เลือก (<span id="airtable-selected-count">${airtableSelected.size}</span> รายการ)
+  </button>
+</div>
+<div id="airtable-import-result"></div>
+<div class="table-card"><div style="overflow-x:auto">
+<table class="data-table">
+  <thead><tr>
+    <th></th>
+    <th>ชื่อ</th>
+    <th>นามสกุล (ฉายา)</th>
+    <th>คอร์สที่สมัคร</th>
+    <th>วันที่สมัคร</th>
+    <th>อีเมล</th>
+    <th>สถานะ</th>
+  </tr></thead>
+  <tbody id="airtable-tbody"></tbody>
+</table></div></div>`;
+
+  renderAirtableRows();
+}
+
+function renderAirtableRows() {
+  const tbody = document.getElementById("airtable-tbody");
+  tbody.innerHTML = airtableRows
+    .map((r) => {
+      const disabled = r.already_imported || !r.course_found;
+      const checked = airtableSelected.has(r.airtable_id);
+      let statusHtml;
+      if (r.already_imported) {
+        statusHtml =
+          '<span style="color:var(--text3);font-size:12px">นำเข้าแล้ว</span>';
+      } else if (!r.course_found) {
+        statusHtml = `<span style="color:var(--red);font-size:12px">ไม่พบคอร์ส "${escHtml(r.course_name)}"</span>`;
+      } else {
+        statusHtml = '<span style="color:var(--green);font-size:12px">ใหม่</span>';
+      }
+      return `<tr style="${disabled ? "opacity:0.5" : ""}">
+        <td><input type="checkbox" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""}
+              onchange="toggleAirtableSelect('${r.airtable_id}', this.checked)"
+              style="width:15px;height:15px;cursor:${disabled ? "default" : "pointer"}"></td>
+        <td><strong style="font-weight:600">${escHtml(r.fields.first_name)}</strong></td>
+        <td>${escHtml(r.fields.last_name || "—")}</td>
+        <td class="cell-muted">${escHtml(r.course_name || "—")}</td>
+        <td class="cell-muted" style="white-space:nowrap">${escHtml(r.fields.apply_date || "—")}</td>
+        <td class="cell-muted">${escHtml(r.fields.email || "—")}</td>
+        <td>${statusHtml}</td>
+      </tr>`;
+    })
+    .join("");
+}
+
+function toggleAirtableSelect(airtableId, checked) {
+  if (checked) airtableSelected.add(airtableId);
+  else airtableSelected.delete(airtableId);
+  document.getElementById("airtable-selected-count").textContent =
+    airtableSelected.size;
+}
+
+function selectAllAirtable(select) {
+  airtableSelected = new Set(
+    select
+      ? airtableRows
+          .filter((r) => !r.already_imported && r.course_found)
+          .map((r) => r.airtable_id)
+      : [],
+  );
+  renderAirtableRows();
+  document.getElementById("airtable-selected-count").textContent =
+    airtableSelected.size;
+}
+
+async function importSelectedAirtable() {
+  if (airtableSelected.size === 0) {
+    alert("กรุณาเลือกอย่างน้อย 1 รายการ");
+    return;
+  }
+  const btn = document.getElementById("btn-airtable-import");
+  const resultBox = document.getElementById("airtable-import-result");
+  btn.disabled = true;
+  btn.textContent = "กำลังนำเข้า...";
+
+  try {
+    const fd = new FormData();
+    fd.append("action", "airtable_import");
+    Array.from(airtableSelected).forEach((id) =>
+      fd.append("airtable_ids[]", id),
+    );
+    const res = await fetch("backend/admin_api.php", {
+      method: "POST",
+      body: fd,
+    });
+    const result = await res.json();
+    if (!result.ok) {
+      resultBox.innerHTML = `<div style="color:var(--red);padding:0.8rem;font-size:13px;margin-bottom:0.8rem">❌ ${result.error}</div>`;
+      return;
+    }
+    let html = `<div style="color:var(--green);padding:0.8rem;font-size:13px;margin-bottom:0.8rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--r)">✅ นำเข้าสำเร็จ ${result.imported} รายการ`;
+    if (result.skipped && result.skipped.length) {
+      html += `<br>ข้าม ${result.skipped.length} รายการ: ${result.skipped
+        .map((s) => escHtml(s.reason))
+        .join(", ")}`;
+    }
+    html += "</div>";
+    resultBox.innerHTML = html;
+
+    // รีเฟรชข้อมูลใหม่ให้ status อัปเดตถูกต้อง
+    await fetchAirtablePreview();
+  } catch (e) {
+    resultBox.innerHTML = `<div style="color:var(--red);padding:0.8rem;font-size:13px;margin-bottom:0.8rem">❌ เกิดข้อผิดพลาด: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+  }
 }

@@ -38,6 +38,14 @@ class StudentRepository
         'department', 'office', 'position', 'head_status', 'attendance',
     ];
 
+    // ฟิลด์ทั้งหมดที่รับมาจาก Airtable ตอนนำเข้า (ครบกว่า webhook เพราะ Airtable มีข้อมูลละเอียดกว่า)
+    private const AIRTABLE_FIELDS = [
+        'first_name', 'last_name', 'member_type', 'apply_date', 'birth_date', 'age',
+        'royal_title', 'education_level', 'faculty', 'major', 'institution',
+        'department', 'office', 'position', 'phone_internal', 'phone_mobile', 'email',
+        'head_status', 'attendance', 'last_modified_time',
+    ];
+
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
@@ -175,5 +183,47 @@ class StudentRepository
             INNER JOIN courses c ON c.id = s.course_id
             ORDER BY c.year_be DESC, c.short_name ASC, s.first_name ASC
         ")->fetchAll();
+    }
+
+    /**
+     * ดึง airtable_id ทั้งหมดที่มีอยู่แล้วใน Neon (เฉพาะแถวที่เคยผูก airtable_id ไว้)
+     * คืนค่าเป็น array แบบ ['recXXXX' => true, 'recYYYY' => true, ...] เพื่อเช็คแบบ O(1)
+     * ใช้เทียบกับข้อมูลจาก Airtable ว่าอันไหน "เคยนำเข้าแล้ว"
+     */
+    public function getExistingAirtableIds(): array
+    {
+        $rows = $this->pdo->query("
+            SELECT airtable_id FROM students WHERE airtable_id IS NOT NULL
+        ")->fetchAll();
+
+        $ids = [];
+        foreach ($rows as $row) {
+            $ids[$row['airtable_id']] = true;
+        }
+        return $ids;
+    }
+
+    /**
+     * นำเข้าผู้เรียน 1 คนจาก Airtable — มีฟิลด์ครบกว่า insertFromWebhook()
+     * เพราะ Airtable เก็บข้อมูลละเอียดกว่า (การศึกษา, คณะ, สาขา, สถาบัน ฯลฯ)
+     * บันทึก airtable_id ไว้ด้วยเพื่อกันนำเข้าซ้ำในอนาคต
+     */
+    public function insertFromAirtable(array $data): int
+    {
+        $fields = self::AIRTABLE_FIELDS;
+        $cols   = 'course_id,airtable_id,' . implode(',', $fields);
+        $phs    = ':course_id,:airtable_id,' . implode(',', array_map(fn($f) => ":$f", $fields));
+
+        $params = [
+            ':course_id'   => $data['course_id'],
+            ':airtable_id' => $data['airtable_id'],
+        ];
+        foreach ($fields as $f) {
+            $params[":$f"] = $data[$f] !== '' && $data[$f] !== null ? $data[$f] : null;
+        }
+
+        $stmt = $this->pdo->prepare("INSERT INTO students ($cols) VALUES ($phs) RETURNING id");
+        $stmt->execute($params);
+        return (int)$stmt->fetchColumn();
     }
 }
