@@ -562,6 +562,31 @@ async function saveEdit() {
     ["short_name", "long_key", "training_date", "year_be", "verify_url"].forEach(
       (f) => fd.append(f, document.getElementById("ef-" + f)?.value || ""),
     );
+  } else if (editType === "airtable_course") {
+    // บันทึกแบบนำเข้าคอร์สจาก Airtable (สร้างคอร์สใหม่ถ้าจำเป็น + นำเข้านักเรียนที่เลือก)
+    const checkedBoxes = document.querySelectorAll(
+      "#airtable-modal-student-list input[type=checkbox]:checked",
+    );
+    const selectedIds = Array.from(checkedBoxes).map((cb) => cb.dataset.airtableId);
+
+    if (selectedIds.length === 0) {
+      alert("กรุณาเลือกนักเรียนอย่างน้อย 1 คน");
+      btn.disabled = false;
+      btn.innerHTML =
+        '<svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:#fff;fill:none;stroke-width:2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> บันทึก';
+      return;
+    }
+
+    fd.append("action", "airtable_import_course");
+    fd.append("course_name", editContext.courseName);
+    fd.append("create_new", editContext.isNew ? "1" : "0");
+    selectedIds.forEach((id) => fd.append("airtable_ids[]", id));
+
+    if (editContext.isNew) {
+      ["short_name", "long_key", "training_date", "year_be", "verify_url"].forEach(
+        (f) => fd.append(f, document.getElementById("ef-" + f)?.value || ""),
+      );
+    }
   } else {
     fd.append("action", isNew ? "add_student" : "update_student");
     if (!isNew) fd.append("id", editContext.id);
@@ -601,7 +626,10 @@ async function saveEdit() {
   if (result.ok) {
     closeEditModal();
     if (editType === "course") await loadCoursesTable();
-    else loadStudentsTable();
+    else if (editType === "airtable_course") {
+      alert(`นำเข้าสำเร็จ ${result.imported} คน` + (result.skipped?.length ? ` (ข้าม ${result.skipped.length} คน)` : ""));
+      await fetchAirtablePreview();
+    } else loadStudentsTable();
   } else {
     alert("เกิดข้อผิดพลาด: " + result.error);
   }
@@ -719,10 +747,9 @@ function escHtml(str) {
     .replace(/"/g, "&quot;");
 }
 
-// ===== นำเข้าข้อมูลจาก Airtable =====
+// ===== นำเข้าข้อมูลจาก Airtable (มุมมองกลุ่มคอร์ส) =====
 
-let airtableRows = [];
-let airtableSelected = new Set();
+let airtableData = { new_courses: [], existing_courses: [] };
 
 function loadAirtableImportPage() {
   const area = document.getElementById("admin-content-area");
@@ -731,8 +758,8 @@ function loadAirtableImportPage() {
   <h2>นำเข้าข้อมูลจาก Airtable</h2>
 </div>
 <p style="font-size:13px;color:var(--text3);margin-bottom:1rem;line-height:1.7">
-  ดึงรายชื่อผู้สมัครจากระบบ Airtable เดิม เปรียบเทียบกับข้อมูลที่มีอยู่แล้วในระบบนี้
-  แล้วเลือกนำเข้าเฉพาะรายการที่ต้องการ (รายการที่เคยนำเข้าแล้วจะถูกทำเครื่องหมายไว้อัตโนมัติ ไม่สามารถเลือกซ้ำได้)
+  ดึงรายชื่อคอร์สและผู้สมัครจากระบบ Airtable เดิม เปรียบเทียบกับคอร์สที่มีอยู่แล้วในระบบนี้
+  แล้วเลือกนำเข้าเป็นรายคอร์ส (คอร์สใหม่จะให้กรอกข้อมูลเพิ่มเติมก่อนสร้าง ส่วนคอร์สที่มีอยู่แล้วนำเข้านักเรียนได้ทันที)
 </p>
 <button class="btn-sm btn-primary" id="btn-airtable-fetch" onclick="fetchAirtablePreview()">
   <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:#fff;fill:none;stroke-width:2">
@@ -759,13 +786,8 @@ async function fetchAirtablePreview() {
       content.innerHTML = `<div style="color:var(--red);padding:1rem;font-size:13px;">❌ ${result.error}</div>`;
       return;
     }
-    airtableRows = result.data;
-    airtableSelected = new Set(
-      airtableRows
-        .filter((r) => !r.already_imported && r.course_found)
-        .map((r) => r.airtable_id),
-    );
-    renderAirtableTable();
+    airtableData = result;
+    renderAirtableCourseGroups();
   } catch (e) {
     content.innerHTML = `<div style="color:var(--red);padding:1rem;font-size:13px;">❌ เชื่อมต่อไม่สำเร็จ: ${e.message}</div>`;
   } finally {
@@ -775,134 +797,124 @@ async function fetchAirtablePreview() {
   }
 }
 
-function renderAirtableTable() {
+function renderAirtableCourseGroups() {
   const content = document.getElementById("airtable-content");
-  const newCount = airtableRows.filter((r) => !r.already_imported).length;
-  const importedCount = airtableRows.length - newCount;
-  const noCourseCount = airtableRows.filter(
-    (r) => !r.already_imported && !r.course_found,
-  ).length;
+  const { new_courses, existing_courses } = airtableData;
 
   content.innerHTML = `
-<div style="display:flex;gap:8px;align-items:center;margin-bottom:0.8rem;flex-wrap:wrap">
-  <span class="badge-count">ทั้งหมด ${airtableRows.length} รายการ</span>
-  <span class="badge-count" style="color:var(--green)">ใหม่ ${newCount} รายการ</span>
-  <span class="badge-count" style="color:var(--text3)">เคยนำเข้าแล้ว ${importedCount} รายการ</span>
-  ${noCourseCount > 0 ? `<span class="badge-count" style="color:var(--red)">หาคอร์สไม่เจอ ${noCourseCount} รายการ</span>` : ""}
-  <div style="flex:1"></div>
-  <button class="btn-sm btn-edit" onclick="selectAllAirtable(true)">เลือกทั้งหมด</button>
-  <button class="btn-sm btn-edit" onclick="selectAllAirtable(false)">ไม่เลือกเลย</button>
-  <button class="btn-sm btn-primary" id="btn-airtable-import" onclick="importSelectedAirtable()">
-    นำเข้าที่เลือก (<span id="airtable-selected-count">${airtableSelected.size}</span> รายการ)
-  </button>
+<div style="display:flex;gap:8px;align-items:center;margin-bottom:1rem;flex-wrap:wrap">
+  <span class="badge-count" style="color:var(--green)">คอร์สใหม่ ${new_courses.length} คอร์ส</span>
+  <span class="badge-count">คอร์สที่มีอยู่แล้ว ${existing_courses.length} คอร์ส</span>
 </div>
-<div id="airtable-import-result"></div>
+
+<h3 style="font-size:14px;margin:1rem 0 0.6rem;color:var(--text)">คอร์สใหม่ที่ยังไม่มีในระบบ</h3>
 <div class="table-card"><div style="overflow-x:auto">
 <table class="data-table">
-  <thead><tr>
-    <th></th>
-    <th>ชื่อ</th>
-    <th>นามสกุล (ฉายา)</th>
-    <th>คอร์สที่สมัคร</th>
-    <th>วันที่สมัคร</th>
-    <th>อีเมล</th>
-    <th>สถานะ</th>
-  </tr></thead>
-  <tbody id="airtable-tbody"></tbody>
-</table></div></div>`;
+  <thead><tr><th>ชื่อคอร์ส (จาก Airtable)</th><th>จำนวนผู้สมัคร</th><th>ยังไม่ได้นำเข้า</th><th>จัดการ</th></tr></thead>
+  <tbody>
+    ${
+      new_courses.length
+        ? new_courses
+            .map(
+              (c) => `<tr>
+        <td><strong style="font-weight:600">${escHtml(c.course_name)}</strong></td>
+        <td class="cell-muted">${c.total_count} คน</td>
+        <td>${c.pending_count > 0 ? `<span style="color:var(--green);font-size:12px">${c.pending_count} คนใหม่</span>` : '<span class="cell-muted">—</span>'}</td>
+        <td><button class="btn-sm btn-primary" onclick='openAirtableCourseModal(${JSON.stringify(c.course_name)}, true)'>สร้างคอร์ส + นำเข้า</button></td>
+      </tr>`,
+            )
+            .join("")
+        : '<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:1.2rem">ไม่พบคอร์สใหม่</td></tr>'
+    }
+  </tbody>
+</table></div></div>
 
-  renderAirtableRows();
+<h3 style="font-size:14px;margin:1.4rem 0 0.6rem;color:var(--text)">คอร์สที่มีอยู่แล้วในระบบ</h3>
+<div class="table-card"><div style="overflow-x:auto">
+<table class="data-table">
+  <thead><tr><th>ชื่อคอร์ส (จาก Airtable)</th><th>จำนวนผู้สมัคร</th><th>ยังไม่ได้นำเข้า</th><th>จัดการ</th></tr></thead>
+  <tbody>
+    ${
+      existing_courses.length
+        ? existing_courses
+            .map(
+              (c) => `<tr>
+        <td><strong style="font-weight:600">${escHtml(c.course_name)}</strong></td>
+        <td class="cell-muted">${c.total_count} คน</td>
+        <td>${c.pending_count > 0 ? `<span style="color:var(--green);font-size:12px">${c.pending_count} คนใหม่</span>` : '<span class="cell-muted">ไม่มีคนใหม่</span>'}</td>
+        <td>${
+          c.pending_count > 0
+            ? `<button class="btn-sm btn-primary" onclick='openAirtableCourseModal(${JSON.stringify(c.course_name)}, false)'>นำเข้านักเรียน</button>`
+            : '<span class="cell-muted" style="font-size:12px">—</span>'
+        }</td>
+      </tr>`,
+            )
+            .join("")
+        : '<tr><td colspan="4" style="text-align:center;color:var(--text3);padding:1.2rem">ไม่พบคอร์สที่มีอยู่แล้ว</td></tr>'
+    }
+  </tbody>
+</table></div></div>`;
 }
 
-function renderAirtableRows() {
-  const tbody = document.getElementById("airtable-tbody");
-  tbody.innerHTML = airtableRows
-    .map((r) => {
-      const disabled = r.already_imported || !r.course_found;
-      const checked = airtableSelected.has(r.airtable_id);
-      let statusHtml;
-      if (r.already_imported) {
-        statusHtml =
-          '<span style="color:var(--text3);font-size:12px">นำเข้าแล้ว</span>';
-      } else if (!r.course_found) {
-        statusHtml = `<span style="color:var(--red);font-size:12px">ไม่พบคอร์ส "${escHtml(r.course_name)}"</span>`;
-      } else {
-        statusHtml = '<span style="color:var(--green);font-size:12px">ใหม่</span>';
-      }
+function findAirtableCourseGroup(courseName, isNew) {
+  const list = isNew ? airtableData.new_courses : airtableData.existing_courses;
+  return list.find((c) => c.course_name === courseName);
+}
+
+function openAirtableCourseModal(courseName, isNew) {
+  const group = findAirtableCourseGroup(courseName, isNew);
+  if (!group) return;
+
+  editContext = { type: "airtable_course", courseName, isNew };
+
+  document.getElementById("edit-modal-title").textContent = isNew
+    ? `สร้างคอร์สใหม่: ${courseName}`
+    : `นำเข้านักเรียน: ${courseName}`;
+
+  const courseFieldsHtml = isNew
+    ? `<div class="edit-grid" style="margin-bottom:1rem">
+        <div class="edit-field full"><label>ชื่อย่อ (short_name) *</label><input type="text" id="ef-short_name" value="${escHtml(courseName)}"></div>
+        <div class="edit-field full"><label>ชื่อยาว (long_key) *</label><input type="text" id="ef-long_key" value="${escHtml(courseName)}"></div>
+        <div class="edit-field full"><label>วันที่อบรม</label><input type="text" id="ef-training_date" placeholder="เช่น วันที่ 1-3 ม.ค. 2568"></div>
+        <div class="edit-field"><label>ปี พ.ศ.</label><input type="text" id="ef-year_be" placeholder="เช่น 2568" maxlength="4" inputmode="numeric" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
+        <div class="edit-field"><label>Verify URL (QR code)</label><input type="text" id="ef-verify_url" placeholder="https://..."></div>
+      </div>`
+    : "";
+
+  const studentRowsHtml = group.students
+    .map((s) => {
+      const disabled = s.already_imported;
       return `<tr style="${disabled ? "opacity:0.5" : ""}">
-        <td><input type="checkbox" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""}
-              onchange="toggleAirtableSelect('${r.airtable_id}', this.checked)"
+        <td><input type="checkbox" data-airtable-id="${s.airtable_id}" ${disabled ? "disabled" : "checked"}
               style="width:15px;height:15px;cursor:${disabled ? "default" : "pointer"}"></td>
-        <td><strong style="font-weight:600">${escHtml(r.fields.first_name)}</strong></td>
-        <td>${escHtml(r.fields.last_name || "—")}</td>
-        <td class="cell-muted">${escHtml(r.course_name || "—")}</td>
-        <td class="cell-muted" style="white-space:nowrap">${escHtml(r.fields.apply_date || "—")}</td>
-        <td class="cell-muted">${escHtml(r.fields.email || "—")}</td>
-        <td>${statusHtml}</td>
+        <td><strong style="font-weight:600">${escHtml(s.fields.first_name)}</strong></td>
+        <td>${escHtml(s.fields.last_name || "—")}</td>
+        <td class="cell-muted">${escHtml(s.fields.apply_date || "—")}</td>
+        <td class="cell-muted">${escHtml(s.fields.email || "—")}</td>
+        <td>${disabled ? '<span style="color:var(--text3);font-size:12px">นำเข้าแล้ว</span>' : '<span style="color:var(--green);font-size:12px">ใหม่</span>'}</td>
       </tr>`;
     })
     .join("");
+
+  document.getElementById("edit-modal-body").innerHTML = `
+    ${courseFieldsHtml}
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:0.6rem">
+      <span style="font-size:13px;color:var(--text3)">รายชื่อผู้สมัคร (${group.total_count} คน)</span>
+      <div style="flex:1"></div>
+      <button type="button" class="btn-sm btn-edit" onclick="toggleSelectAllAirtableModal(true)">เลือกทั้งหมด</button>
+      <button type="button" class="btn-sm btn-edit" onclick="toggleSelectAllAirtableModal(false)">ไม่เลือกเลย</button>
+    </div>
+    <div class="table-card"><div style="overflow-x:auto;max-height:320px;overflow-y:auto">
+    <table class="data-table" id="airtable-modal-student-list">
+      <thead><tr><th></th><th>ชื่อ</th><th>นามสกุล (ฉายา)</th><th>วันที่สมัคร</th><th>อีเมล</th><th>สถานะ</th></tr></thead>
+      <tbody>${studentRowsHtml}</tbody>
+    </table></div></div>`;
+
+  document.getElementById("edit-modal-overlay").classList.add("open");
 }
 
-function toggleAirtableSelect(airtableId, checked) {
-  if (checked) airtableSelected.add(airtableId);
-  else airtableSelected.delete(airtableId);
-  document.getElementById("airtable-selected-count").textContent =
-    airtableSelected.size;
-}
-
-function selectAllAirtable(select) {
-  airtableSelected = new Set(
-    select
-      ? airtableRows
-          .filter((r) => !r.already_imported && r.course_found)
-          .map((r) => r.airtable_id)
-      : [],
-  );
-  renderAirtableRows();
-  document.getElementById("airtable-selected-count").textContent =
-    airtableSelected.size;
-}
-
-async function importSelectedAirtable() {
-  if (airtableSelected.size === 0) {
-    alert("กรุณาเลือกอย่างน้อย 1 รายการ");
-    return;
-  }
-  const btn = document.getElementById("btn-airtable-import");
-  const resultBox = document.getElementById("airtable-import-result");
-  btn.disabled = true;
-  btn.textContent = "กำลังนำเข้า...";
-
-  try {
-    const fd = new FormData();
-    fd.append("action", "airtable_import");
-    Array.from(airtableSelected).forEach((id) =>
-      fd.append("airtable_ids[]", id),
-    );
-    const res = await fetch("backend/admin_api.php", {
-      method: "POST",
-      body: fd,
-    });
-    const result = await res.json();
-    if (!result.ok) {
-      resultBox.innerHTML = `<div style="color:var(--red);padding:0.8rem;font-size:13px;margin-bottom:0.8rem">❌ ${result.error}</div>`;
-      return;
-    }
-    let html = `<div style="color:var(--green);padding:0.8rem;font-size:13px;margin-bottom:0.8rem;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--r)">✅ นำเข้าสำเร็จ ${result.imported} รายการ`;
-    if (result.skipped && result.skipped.length) {
-      html += `<br>ข้าม ${result.skipped.length} รายการ: ${result.skipped
-        .map((s) => escHtml(s.reason))
-        .join(", ")}`;
-    }
-    html += "</div>";
-    resultBox.innerHTML = html;
-
-    // รีเฟรชข้อมูลใหม่ให้ status อัปเดตถูกต้อง
-    await fetchAirtablePreview();
-  } catch (e) {
-    resultBox.innerHTML = `<div style="color:var(--red);padding:0.8rem;font-size:13px;margin-bottom:0.8rem">❌ เกิดข้อผิดพลาด: ${e.message}</div>`;
-  } finally {
-    btn.disabled = false;
-  }
+function toggleSelectAllAirtableModal(select) {
+  document
+    .querySelectorAll("#airtable-modal-student-list input[type=checkbox]:not(:disabled)")
+    .forEach((cb) => (cb.checked = select));
 }

@@ -66,6 +66,16 @@ class CourseRepository
         return $row ?: null;
     }
 
+    /** ค้นหาคอร์สจากชื่อ โดยเทียบกับทั้ง short_name และ long_key แบบตรงเป๊ะ
+     *  ใช้ตอนนำเข้าจาก Airtable เพื่อเช็คว่าคอร์สนี้มีอยู่แล้วในระบบหรือยัง (คืนค่าทั้งแถว ไม่ใช่แค่ id) */
+    public function findByShortNameOrLongKey(string $name): ?array
+    {
+        $stmt = $this->pdo->prepare("SELECT * FROM courses WHERE short_name = :name OR long_key = :name LIMIT 1");
+        $stmt->execute([':name' => $name]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
     public function add(array $data): int
     {
         $stmt = $this->pdo->prepare("

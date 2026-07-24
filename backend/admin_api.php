@@ -166,7 +166,7 @@ try {
         exit;
     }
 
-    // ===== ดึงข้อมูลจาก Airtable มาแสดงพรีวิว (ยังไม่บันทึกอะไร) =====
+    // ===== ดึงข้อมูลจาก Airtable มาแสดงพรีวิว แบบ group ตามคอร์ส (ยังไม่บันทึกอะไร) =====
     if ($action === 'airtable_preview') {
         $apiKey  = getenv('AIRTABLE_API_KEY') ?: '';
         $baseId  = getenv('AIRTABLE_BASE_ID') ?: '';
@@ -180,27 +180,173 @@ try {
         $records     = $client->fetchAllRecords();
         $existingIds = $studentRepo->getExistingAirtableIds();
 
-        $rows = [];
+        // จัดกลุ่ม record ทั้งหมดตามชื่อคอร์ส (ชื่อโปรแกรม)
+        $courseGroups = []; // key = ชื่อคอร์สจาก Airtable, value = ['course_info' => ..., 'students' => [...]]
+
         foreach ($records as $rec) {
             $f          = $rec['fields'] ?? [];
             $courseName = trim($f[AIRTABLE_COURSE_FIELD] ?? '');
-            $course     = $courseName !== '' ? $courseRepo->findByShortName($courseName) : null;
+            if ($courseName === '') {
+                continue; // ไม่มีชื่อคอร์ส ข้ามไป (ไม่รู้จะจัดกลุ่มลงไหน)
+            }
 
+            if (!isset($courseGroups[$courseName])) {
+                $existingCourse = $courseRepo->findByShortNameOrLongKey($courseName);
+                $courseGroups[$courseName] = [
+                    'course_name'  => $courseName,
+                    'is_existing'  => (bool)$existingCourse,
+                    'existing_id'  => $existingCourse['id'] ?? null,
+                    'students'     => [],
+                ];
+            }
+
+            // ถ้านักเรียนคนนี้เคยนำเข้าไปแล้ว ก็ยังคงแสดงในรายการ แต่ทำเครื่องหมายไว้ (ไม่ติ๊กให้อัตโนมัติ)
             $mapped = [];
             foreach (AIRTABLE_FIELD_MAP as $atKey => $ourKey) {
                 $mapped[$ourKey] = $f[$atKey] ?? '';
             }
 
-            $rows[] = [
+            $courseGroups[$courseName]['students'][] = [
                 'airtable_id'      => $rec['id'],
-                'course_name'      => $courseName,
-                'course_found'     => (bool)$course,
                 'already_imported' => isset($existingIds[$rec['id']]),
                 'fields'           => $mapped,
             ];
         }
 
-        echo json_encode(['ok' => true, 'count' => count($rows), 'data' => $rows]);
+        // แยกผลลัพธ์เป็น 2 กลุ่ม: คอร์สใหม่ / คอร์สที่มีอยู่แล้ว พร้อมนับจำนวนนักเรียนที่ยังไม่เคยนำเข้า
+        $newCourses      = [];
+        $existingCourses = [];
+
+        foreach ($courseGroups as $group) {
+            $pendingCount = 0;
+            foreach ($group['students'] as $s) {
+                if (!$s['already_imported']) $pendingCount++;
+            }
+
+            $entry = [
+                'course_name'   => $group['course_name'],
+                'existing_id'   => $group['existing_id'],
+                'students'      => $group['students'],
+                'total_count'   => count($group['students']),
+                'pending_count' => $pendingCount,
+            ];
+
+            if ($group['is_existing']) {
+                $existingCourses[] = $entry;
+            } else {
+                $newCourses[] = $entry;
+            }
+        }
+
+        echo json_encode([
+            'ok'               => true,
+            'new_courses'      => $newCourses,
+            'existing_courses' => $existingCourses,
+        ]);
+        exit;
+    }
+
+    // ===== สร้างคอร์ส (ถ้าเป็นคอร์สใหม่) + นำเข้านักเรียนที่เลือกในคอร์สนั้น ในทีเดียว =====
+    if ($action === 'airtable_import_course') {
+        $courseName = trim($_POST['course_name'] ?? '');
+        $createNew  = ($_POST['create_new'] ?? '') === '1';
+
+        $selectedIds = $_POST['airtable_ids'] ?? [];
+        if (!is_array($selectedIds)) {
+            $selectedIds = json_decode($selectedIds, true) ?: [];
+        }
+
+        if ($courseName === '' || empty($selectedIds)) {
+            echo json_encode(['ok' => false, 'error' => 'ข้อมูลไม่ครบ (ต้องมีชื่อคอร์สและเลือกนักเรียนอย่างน้อย 1 คน)']);
+            exit;
+        }
+
+        $apiKey  = getenv('AIRTABLE_API_KEY') ?: '';
+        $baseId  = getenv('AIRTABLE_BASE_ID') ?: '';
+        $tableId = getenv('AIRTABLE_TABLE_ID') ?: '';
+        if (!$apiKey || !$baseId || !$tableId) {
+            echo json_encode(['ok' => false, 'error' => 'ยังไม่ได้ตั้งค่า Airtable environment variables']);
+            exit;
+        }
+
+        $pdo->beginTransaction();
+        try {
+            // 1) หา หรือ สร้าง course_id
+            if ($createNew) {
+                $shortName = trim($_POST['short_name'] ?? '');
+                $longKey   = trim($_POST['long_key'] ?? '');
+                if (!$shortName || !$longKey) {
+                    throw new Exception('กรุณากรอกชื่อย่อและชื่อยาวของคอร์สใหม่');
+                }
+                $courseId = $courseRepo->add([
+                    'short_name'    => $shortName,
+                    'long_key'      => $longKey,
+                    'training_date' => trim($_POST['training_date'] ?? ''),
+                    'year_be'       => trim($_POST['year_be'] ?? ''),
+                    'verify_url'    => trim($_POST['verify_url'] ?? ''),
+                ]);
+            } else {
+                $existing = $courseRepo->findByShortNameOrLongKey($courseName);
+                if (!$existing) {
+                    throw new Exception("ไม่พบคอร์ส '$courseName' ในระบบ (course_id)");
+                }
+                $courseId = (int)$existing['id'];
+            }
+
+            // 2) ดึงข้อมูลจาก Airtable ใหม่อีกครั้ง เพื่อความถูกต้อง (ไม่เชื่อข้อมูลจาก client ตรงๆ)
+            $client      = new AirtableClient($apiKey, $baseId, $tableId);
+            $records     = $client->fetchAllRecords();
+            $existingIds = $studentRepo->getExistingAirtableIds();
+            $selectedSet = array_flip($selectedIds);
+
+            $imported = 0;
+            $skipped  = [];
+
+            foreach ($records as $rec) {
+                if (!isset($selectedSet[$rec['id']])) {
+                    continue; // ไม่ได้ถูกเลือกไว้
+                }
+                $f = $rec['fields'] ?? [];
+                $recCourseName = trim($f[AIRTABLE_COURSE_FIELD] ?? '');
+                if ($recCourseName !== $courseName) {
+                    continue; // กันเคสข้อมูลไม่ตรงคอร์สที่กำลัง import
+                }
+                if (isset($existingIds[$rec['id']])) {
+                    $skipped[] = ['airtable_id' => $rec['id'], 'reason' => 'นำเข้าไปแล้วก่อนหน้านี้'];
+                    continue;
+                }
+
+                $firstName = trim($f['ชื่อ'] ?? '');
+                if ($firstName === '') {
+                    $skipped[] = ['airtable_id' => $rec['id'], 'reason' => 'ไม่มีชื่อผู้สมัคร'];
+                    continue;
+                }
+
+                $data = [
+                    'course_id'   => $courseId,
+                    'airtable_id' => $rec['id'],
+                    'first_name'  => $firstName,
+                ];
+                foreach (AIRTABLE_FIELD_MAP as $atKey => $ourKey) {
+                    if ($ourKey === 'first_name') continue;
+                    $data[$ourKey] = trim($f[$atKey] ?? '') ?: null;
+                }
+
+                $studentRepo->insertFromAirtable($data);
+                $imported++;
+            }
+
+            $pdo->commit();
+            echo json_encode([
+                'ok'        => true,
+                'course_id' => $courseId,
+                'imported'  => $imported,
+                'skipped'   => $skipped,
+            ]);
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            echo json_encode(['ok' => false, 'error' => $e->getMessage()]);
+        }
         exit;
     }
 
