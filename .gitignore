@@ -1,4 +1,5 @@
 # ห้าม commit ไฟล์ที่มี credentials
+.env
 # database/config.php
 
 # ไฟล์ระบบ Windows
