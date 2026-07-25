@@ -7,6 +7,9 @@
 //   require_once __DIR__ . '/lib/require_admin.php';
 // แล้วไม่ต้องเขียนโค้ดเช็ค login ซ้ำเองอีก
 
+// โหลด .env อัตโนมัติถ้ารันบนเครื่อง local
+require_once __DIR__ . '/load_env.php';
+
 session_start();
 header('Content-Type: application/json; charset=utf-8');
 

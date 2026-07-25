@@ -4,6 +4,8 @@
 // (ตั้งค่าจริงไว้ที่ Render Dashboard -> Environment ไม่ใช่ในไฟล์นี้)
 // ตอนรันบนเครื่อง local ให้ตั้งค่า environment variable เองก่อนรัน หรือดู config.example.php
 
+require_once __DIR__ . '/../backend/lib/load_env.php';
+
 define('DB_HOST', getenv('DB_HOST') ?: '');
 define('DB_PORT', getenv('DB_PORT') ?: '5432');
 define('DB_NAME', getenv('DB_NAME') ?: '');

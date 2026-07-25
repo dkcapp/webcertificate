@@ -1,6 +1,9 @@
 <?php
 session_start();
 
+// โหลด .env อัตโนมัติถ้ารันบนเครื่อง local
+require_once __DIR__ . '/lib/load_env.php';
+
 // ====== อ่าน username/password จาก Environment Variables (ตั้งค่าจริงไว้ที่ Render Dashboard) ======
 define('ADMIN_USER', getenv('ADMIN_USER') ?: '');
 define('ADMIN_PASS', getenv('ADMIN_PASS') ?: '');

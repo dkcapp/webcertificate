@@ -1,4 +1,20 @@
 <?php
+// โหลด .env อัตโนมัติถ้ารันบนเครื่อง local
+$envFile = __DIR__ . '/../.env';
+if (file_exists($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (str_starts_with(trim($line), '#')) continue;
+        if (!str_contains($line, '=')) continue;
+        [$key, $value] = explode('=', $line, 2);
+        $key   = trim($key);
+        $value = trim($value);
+        if ($key !== '' && getenv($key) === false) {
+            putenv("$key=$value");
+        }
+    }
+}
+
 require_once __DIR__ . '/lib/require_admin.php';
 require_once __DIR__ . '/lib/error_handler.php';
 require_once __DIR__ . '/../database/config.php';
@@ -180,49 +196,50 @@ try {
         $records     = $client->fetchAllRecords();
         $existingIds = $studentRepo->getExistingAirtableIds();
 
-        // จัดกลุ่ม record ทั้งหมดตามชื่อคอร์ส (ชื่อโปรแกรม)
-        $courseGroups = []; // key = ชื่อคอร์สจาก Airtable, value = ['course_info' => ..., 'students' => [...]]
+        // ดึงคอร์สทั้งหมดมาครั้งเดียว แล้ว index ด้วย short_name และ long_key
+        $allCourses      = $courseRepo->listWithStudentCount();
+        $courseByShort   = [];
+        $courseByLongKey = [];
+        foreach ($allCourses as $c) {
+            if ($c['short_name']) $courseByShort[trim($c['short_name'])]  = $c;
+            if ($c['long_key'])   $courseByLongKey[trim($c['long_key'])]  = $c;
+        }
 
-        foreach ($records as $rec) {
-            $f          = $rec['fields'] ?? [];
+        $courseGroups = [];
+        foreach ($records as $airtableRec) {
+            $f          = $airtableRec['fields'] ?? [];
             $courseName = trim($f[AIRTABLE_COURSE_FIELD] ?? '');
-            if ($courseName === '') {
-                continue; // ไม่มีชื่อคอร์ส ข้ามไป (ไม่รู้จะจัดกลุ่มลงไหน)
-            }
+            if ($courseName === '') continue;
 
             if (!isset($courseGroups[$courseName])) {
-                $existingCourse = $courseRepo->findByShortNameOrLongKey($courseName);
+                $existingCourse = $courseByShort[$courseName] ?? $courseByLongKey[$courseName] ?? null;
                 $courseGroups[$courseName] = [
-                    'course_name'  => $courseName,
-                    'is_existing'  => (bool)$existingCourse,
-                    'existing_id'  => $existingCourse['id'] ?? null,
-                    'students'     => [],
+                    'course_name' => $courseName,
+                    'is_existing' => (bool)$existingCourse,
+                    'existing_id' => $existingCourse['id'] ?? null,
+                    'students'    => [],
                 ];
             }
 
-            // ถ้านักเรียนคนนี้เคยนำเข้าไปแล้ว ก็ยังคงแสดงในรายการ แต่ทำเครื่องหมายไว้ (ไม่ติ๊กให้อัตโนมัติ)
             $mapped = [];
             foreach (AIRTABLE_FIELD_MAP as $atKey => $ourKey) {
                 $mapped[$ourKey] = $f[$atKey] ?? '';
             }
 
             $courseGroups[$courseName]['students'][] = [
-                'airtable_id'      => $rec['id'],
-                'already_imported' => isset($existingIds[$rec['id']]),
+                'airtable_id'      => $airtableRec['id'],
+                'already_imported' => isset($existingIds[$airtableRec['id']]),
                 'fields'           => $mapped,
             ];
         }
 
-        // แยกผลลัพธ์เป็น 2 กลุ่ม: คอร์สใหม่ / คอร์สที่มีอยู่แล้ว พร้อมนับจำนวนนักเรียนที่ยังไม่เคยนำเข้า
         $newCourses      = [];
         $existingCourses = [];
-
         foreach ($courseGroups as $group) {
             $pendingCount = 0;
             foreach ($group['students'] as $s) {
                 if (!$s['already_imported']) $pendingCount++;
             }
-
             $entry = [
                 'course_name'   => $group['course_name'],
                 'existing_id'   => $group['existing_id'],
@@ -230,7 +247,6 @@ try {
                 'total_count'   => count($group['students']),
                 'pending_count' => $pendingCount,
             ];
-
             if ($group['is_existing']) {
                 $existingCourses[] = $entry;
             } else {
