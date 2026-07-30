@@ -26,6 +26,14 @@ $pdo         = getDB();
 $courseRepo  = new CourseRepository($pdo);
 $studentRepo = new StudentRepository($pdo);
 
+// กันไว้: ถ้า PHP ถูกตัดกลางคัน (เช่น timeout) ระหว่างเปิด transaction ค้างไว้
+// ให้ rollback อัตโนมัติตอน script จบ ป้องกันไม่ให้ transaction ที่พังค้างไปกระทบ request ถัดไป
+register_shutdown_function(function() use ($pdo) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+});
+
 // ผูก field ของ Airtable เข้ากับชื่อคอลัมน์ในตาราง students ของเรา
 // (key ฝั่งซ้าย = ชื่อ field จริงใน Airtable, value ฝั่งขวา = ชื่อคอลัมน์ใน Neon)
 const AIRTABLE_FIELD_MAP = [
@@ -285,6 +293,12 @@ try {
             exit;
         }
 
+        // ดึงข้อมูลจาก Airtable ก่อน "นอก" transaction (เป็น network call ห้ามค้างอยู่ระหว่างเปิด transaction กับ DB)
+        $client      = new AirtableClient($apiKey, $baseId, $tableId);
+        $records     = $client->fetchAllRecords();
+        $existingIds = $studentRepo->getExistingAirtableIds();
+        $selectedSet = array_flip($selectedIds);
+
         $pdo->beginTransaction();
         try {
             // 1) หา หรือ สร้าง course_id
@@ -308,12 +322,6 @@ try {
                 }
                 $courseId = (int)$existing['id'];
             }
-
-            // 2) ดึงข้อมูลจาก Airtable ใหม่อีกครั้ง เพื่อความถูกต้อง (ไม่เชื่อข้อมูลจาก client ตรงๆ)
-            $client      = new AirtableClient($apiKey, $baseId, $tableId);
-            $records     = $client->fetchAllRecords();
-            $existingIds = $studentRepo->getExistingAirtableIds();
-            $selectedSet = array_flip($selectedIds);
 
             $imported = 0;
             $skipped  = [];
