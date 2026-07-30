@@ -1,6 +1,55 @@
 // assets/js/admin.js
 // ตรรกะหน้า Admin Panel ทั้งหมด: จัดการคอร์ส, จัดการรายชื่อผู้เรียน, เปิดรับสมัคร + sync JotForm
 
+// ===== Toast Notification (แทนที่ alert() แบบเดิม) =====
+const TOAST_ICONS = {
+  success: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>',
+  error: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+  info: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+};
+
+function ensureToastContainer() {
+  let el = document.getElementById("toast-container");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "toast-container";
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function showToast(message, type = "success", title = "") {
+  const container = ensureToastContainer();
+  const defaultTitles = { success: "สำเร็จ", error: "เกิดข้อผิดพลาด", info: "แจ้งเตือน" };
+  const toastTitle = title || defaultTitles[type] || "";
+
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `
+    <div class="toast-icon"><svg viewBox="0 0 24 24">${TOAST_ICONS[type] || TOAST_ICONS.info}</svg></div>
+    <div class="toast-body">
+      <div class="toast-title">${escHtml(toastTitle)}</div>
+      <div class="toast-message">${escHtml(message)}</div>
+    </div>
+    <button class="toast-close" onclick="dismissToast(this.closest('.toast'))">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>`;
+
+  container.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("show"));
+
+  const timer = setTimeout(() => dismissToast(toast), 4000);
+  toast.dataset.timer = timer;
+}
+
+function dismissToast(toast) {
+  if (!toast) return;
+  clearTimeout(toast.dataset.timer);
+  toast.classList.remove("show");
+  toast.classList.add("hide");
+  setTimeout(() => toast.remove(), 300);
+}
+
 let currentTab = "download";
 let currentAdminSection = "courses";
 let editContext = null;
@@ -275,7 +324,7 @@ async function deleteCourse(id, name) {
   });
   const result = await res.json();
   if (result.ok) loadCoursesTable();
-  else alert("เกิดข้อผิดพลาด: " + result.error);
+  else showToast(result.error, "error");
 }
 
 async function loadStudentsTable(page) {
@@ -545,7 +594,7 @@ async function deleteStudent(id, name) {
   });
   const result = await res.json();
   if (result.ok) loadStudentsTable();
-  else alert("เกิดข้อผิดพลาด: " + result.error);
+  else showToast(result.error, "error");
 }
 
 async function saveEdit() {
@@ -570,7 +619,7 @@ async function saveEdit() {
     const selectedIds = Array.from(checkedBoxes).map((cb) => cb.dataset.airtableId);
 
     if (selectedIds.length === 0) {
-      alert("กรุณาเลือกนักเรียนอย่างน้อย 1 คน");
+      showToast("กรุณาเลือกนักเรียนอย่างน้อย 1 คน", "error", "ยังไม่ได้เลือก");
       btn.disabled = false;
       btn.innerHTML =
         '<svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:#fff;fill:none;stroke-width:2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> บันทึก';
@@ -627,11 +676,15 @@ async function saveEdit() {
     closeEditModal();
     if (editType === "course") await loadCoursesTable();
     else if (editType === "airtable_course") {
-      alert(`นำเข้าสำเร็จ ${result.imported} คน` + (result.skipped?.length ? ` (ข้าม ${result.skipped.length} คน)` : ""));
+      showToast(
+        `นำเข้าสำเร็จ ${result.imported} คน` + (result.skipped?.length ? ` (ข้าม ${result.skipped.length} คน)` : ""),
+        "success",
+        "นำเข้าข้อมูลสำเร็จ"
+      );
       await fetchAirtablePreview();
     } else loadStudentsTable();
   } else {
-    alert("เกิดข้อผิดพลาด: " + result.error);
+    showToast(result.error, "error");
   }
 }
 
