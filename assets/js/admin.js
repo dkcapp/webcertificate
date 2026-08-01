@@ -735,7 +735,10 @@ async function loadActiveCoursesAdmin() {
         .map(
           (r) => `<tr>
         <td class="cell-id">${r.id}</td>
-        <td><strong>${escHtml(r.short_name)}</strong></td>
+        <td>
+          <strong>${escHtml(r.long_key)}</strong><br>
+          <span style="font-size:11px;color:var(--text3)">${escHtml(r.short_name)}</span>
+        </td>
         <td>${r.year_be || "—"}</td>
         <td>
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">

@@ -29,7 +29,7 @@ class CourseRepository
     public function listWithActiveFlag(): array
     {
         return $this->pdo->query("
-            SELECT c.id, c.short_name, c.year_be,
+            SELECT c.id, c.short_name, c.long_key, c.year_be,
                    CASE WHEN ac.course_id IS NOT NULL THEN true ELSE false END as is_active
             FROM courses c
             LEFT JOIN active_courses ac ON ac.course_id = c.id
@@ -37,16 +37,16 @@ class CourseRepository
         ")->fetchAll();
     }
 
-    /** ดึงชื่อคอร์สที่เปิดรับสมัครอยู่ทั้งหมด (ใช้ตอน sync ไป JotForm) */
-    public function listActiveShortNames(): array
+    /** ดึงชื่อคอร์ส (ยาว) ที่เปิดรับสมัครอยู่ทั้งหมด (ใช้ตอน sync ไป JotForm) */
+    public function listActiveLongKeys(): array
     {
         $rows = $this->pdo->query("
-            SELECT c.short_name
+            SELECT c.long_key
             FROM active_courses ac
             INNER JOIN courses c ON c.id = ac.course_id
-            ORDER BY c.short_name ASC
+            ORDER BY c.long_key ASC
         ")->fetchAll();
-        return array_column($rows, 'short_name');
+        return array_column($rows, 'long_key');
     }
 
     public function findById(int $id): ?array

@@ -49,8 +49,8 @@ try {
         exit;
     }
 
-    // หา course_id จากชื่อคอร์สที่เลือกใน dropdown
-    $course = $courseName !== '' ? $courseRepo->findByShortName($courseName) : null;
+    // หา course_id จากชื่อคอร์สที่เลือกใน dropdown (เทียบได้ทั้งชื่อสั้นและชื่อยาว กันเคส dropdown เปลี่ยนไปมา)
+    $course = $courseName !== '' ? $courseRepo->findByShortNameOrLongKey($courseName) : null;
 
     if (!$course) {
         // course_id เป็น NOT NULL ในตาราง students ถ้าหาไม่เจอต้องหยุดตรงนี้ ห้าม insert ต่อ

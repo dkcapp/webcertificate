@@ -44,7 +44,7 @@ try {
             exit;
         }
 
-        $activeCourseNames = $courseRepo->listActiveShortNames();
+        $activeCourseNames = $courseRepo->listActiveLongKeys();
         if (!$activeCourseNames) {
             echo json_encode(['ok' => false, 'error' => 'ไม่มีคอร์สที่เปิดรับสมัครอยู่ กรุณาเปิดอย่างน้อย 1 คอร์สก่อน sync']);
             exit;
