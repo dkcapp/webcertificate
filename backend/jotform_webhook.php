@@ -38,7 +38,7 @@ try {
     $department      = trim($raw['q31_typeA31'] ?? '');
     $office          = trim($raw['q32_input59'] ?? '');
     $position        = trim($raw['q33_typeA33'] ?? '');
-    $phone_internal  = trim($raw['q38_input38'] ?? '');
+    $phone_internal  = trim($raw['q38_input38']['full'] ?? '');
     $phone_mobile    = trim($raw['q39_phoneNumber']['full'] ?? '');
     $email           = trim($raw['q82_email82'] ?? '');
     $attendance      = trim($raw['q104_input104'] ?? '');
