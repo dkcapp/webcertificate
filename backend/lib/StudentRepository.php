@@ -26,24 +26,69 @@ class StudentRepository
 
     // ฟิลด์ที่แก้ไขได้ตอนเพิ่มผู้เรียนใหม่ (รวม first_name)
     private const INSERTABLE_FIELDS = [
-        'first_name', 'last_name', 'member_type', 'email', 'phone_mobile', 'phone_internal',
-        'birth_date', 'age', 'royal_title', 'education_level', 'faculty', 'major', 'institution',
-        'department', 'office', 'position', 'head_status', 'attendance',
+        'first_name',
+        'last_name',
+        'member_type',
+        'email',
+        'phone_mobile',
+        'phone_internal',
+        'birth_date',
+        'age',
+        'royal_title',
+        'education_level',
+        'faculty',
+        'major',
+        'institution',
+        'department',
+        'office',
+        'position',
+        'head_status',
+        'attendance',
     ];
 
     // ฟิลด์ที่แก้ไขได้ตอนอัปเดตผู้เรียน (ไม่รวม royal_title ตามพฤติกรรมเดิม)
     private const UPDATABLE_FIELDS = [
-        'first_name', 'last_name', 'member_type', 'email', 'phone_mobile', 'phone_internal',
-        'birth_date', 'age', 'education_level', 'faculty', 'major', 'institution',
-        'department', 'office', 'position', 'head_status', 'attendance',
+        'first_name',
+        'last_name',
+        'member_type',
+        'email',
+        'phone_mobile',
+        'phone_internal',
+        'birth_date',
+        'age',
+        'education_level',
+        'faculty',
+        'major',
+        'institution',
+        'department',
+        'office',
+        'position',
+        'head_status',
+        'attendance',
     ];
 
     // ฟิลด์ทั้งหมดที่รับมาจาก Airtable ตอนนำเข้า (ครบกว่า webhook เพราะ Airtable มีข้อมูลละเอียดกว่า)
     private const AIRTABLE_FIELDS = [
-        'first_name', 'last_name', 'member_type', 'apply_date', 'birth_date', 'age',
-        'royal_title', 'education_level', 'faculty', 'major', 'institution',
-        'department', 'office', 'position', 'phone_internal', 'phone_mobile', 'email',
-        'head_status', 'attendance', 'last_modified_time',
+        'first_name',
+        'last_name',
+        'member_type',
+        'apply_date',
+        'birth_date',
+        'age',
+        'royal_title',
+        'education_level',
+        'faculty',
+        'major',
+        'institution',
+        'department',
+        'office',
+        'position',
+        'phone_internal',
+        'phone_mobile',
+        'email',
+        'head_status',
+        'attendance',
+        'last_modified_time',
     ];
 
     public function __construct(PDO $pdo)
@@ -178,7 +223,7 @@ class StudentRepository
                 s.faculty, s.major, s.institution, s.department, s.office,
                 s.position, s.phone_internal, s.phone_mobile, s.email,
                 s.head_status, s.attendance, s.last_modified_time,
-                c.short_name AS course_name, c.training_date, c.year_be, c.verify_url
+                c.short_name AS course_name, c.long_key AS course_long_name, c.training_date, c.year_be, c.verify_url
             FROM students s
             INNER JOIN courses c ON c.id = s.course_id
             ORDER BY c.year_be DESC, c.short_name ASC, s.first_name ASC

@@ -8,6 +8,7 @@ const CERT_BG = "assets/images/main1.png";
 const COL_FIRSTNAME = "ชื่อ";
 const COL_LASTNAME = "นามสกุล (ฉายา)";
 const COL_COURSE_NAME = "ชื่อโปรแกรม";
+const COL_COURSE_LONGNAME = "ชื่อโปรแกรมเต็ม";
 const COL_DATE = "วันที่อบรม";
 
 let allRecords = [];
@@ -107,6 +108,7 @@ function buildCourseDropdown() {
         records: [],
         date: r.fields[COL_DATE] || "",
         verify_url: r.fields["verify_url"] || "",
+        longName: r.fields[COL_COURSE_LONGNAME] || "",
       };
     courseMap[k].records.push(r);
   });
@@ -295,6 +297,39 @@ function updateQRCode() {
   qrArea.style.display = "block";
 }
 
+function getDisplayCourseName(course) {
+  const info = courseMap[course] || {};
+  const longName = info.longName || "";
+  const idx = longName.indexOf("วันที่");
+  if (idx > 0) {
+    return longName.slice(0, idx).trim();
+  }
+  // ไม่เจอคำว่า "วันที่" ในชื่อยาว -> fallback ใช้ชื่อสั้นแทน กันเกียรติบัตรพัง
+  return course;
+}
+
+function fitDescText() {
+  const el = document.querySelector(".cert-desc-text");
+  if (!el) return;
+  el.style.setProperty("--desc-scale", "1");
+  requestAnimationFrame(() => {
+    const maxLines = 2;
+    const minScale = 0.7;
+    const step = 0.03;
+    let scale = 1;
+    let lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+    let target = lineHeight * maxLines + 1;
+    let guard = 0;
+    while (el.scrollHeight > target && scale > minScale && guard < 30) {
+      scale -= step;
+      el.style.setProperty("--desc-scale", scale.toFixed(3));
+      lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+      target = lineHeight * maxLines + 1;
+      guard++;
+    }
+  });
+}
+
 function updateCert() {
   const name = document.getElementById("inp-name").value.trim();
   const disp = document.getElementById("disp-name");
@@ -309,10 +344,11 @@ function updateCert() {
     disp.classList.add("placeholder-text");
   }
   if (selectedCourse) {
-    document.getElementById("disp-course-inline").textContent = selectedCourse;
+    document.getElementById("disp-course-inline").textContent = getDisplayCourseName(selectedCourse);
     document.getElementById("disp-date-inline").textContent = info.date || "";
   }
   updateQRCode();
+  fitDescText();
   document.getElementById("btn-dl").disabled = !(name && selectedCourse);
 }
 

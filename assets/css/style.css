@@ -743,7 +743,7 @@ body {
 
 .cert-desc-text {
   font-family: "Sarabun", sans-serif;
-  font-size: clamp(6px, 1.8cqw, 18px);
+  font-size: calc(clamp(6px, 1.8cqw, 18px) * var(--desc-scale, 1));
   color: #333;
   line-height: 1.6;
 }

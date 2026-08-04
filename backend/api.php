@@ -20,6 +20,7 @@ try {
                 'ชื่อ'                 => $row['first_name'],
                 'นามสกุล (ฉายา)'       => $row['last_name'],
                 'ชื่อโปรแกรม'           => $row['course_name'],
+                'ชื่อโปรแกรมเต็ม'       => $row['course_long_name'],
                 'วันที่อบรม'            => $row['training_date'],
                 'ประเภทสมาชิก'         => $row['member_type'],
                 'วันที่สมัคร'           => $row['apply_date'],
