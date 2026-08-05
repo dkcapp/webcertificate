@@ -231,21 +231,23 @@ class StudentRepository
     }
 
     /**
-     * ดึง airtable_id ทั้งหมดที่มีอยู่แล้วใน Neon (เฉพาะแถวที่เคยผูก airtable_id ไว้)
-     * คืนค่าเป็น array แบบ ['recXXXX' => true, 'recYYYY' => true, ...] เพื่อเช็คแบบ O(1)
-     * ใช้เทียบกับข้อมูลจาก Airtable ว่าอันไหน "เคยนำเข้าแล้ว"
+     * ดึงคู่ (airtable_id + course_id) ที่มีอยู่แล้วใน Neon
+     * คืนค่าเป็น array แบบ ['recXXXX::12' => true, ...] เพื่อเช็คแบบ O(1)
+     * เช็คเป็น "คู่" แทนที่จะเช็ค airtable_id เดี่ยว ๆ เพราะคนคนเดียวกันสมัครได้หลายคอร์ส
+     * ถ้า Airtable เขียนทับ record เดิมตอนคนคนเดิมสมัครคอร์สใหม่ airtable_id จะซ้ำกัน
+     * แต่ course_id ต่างกัน จึงต้องยังอนุญาตให้นำเข้าได้
      */
-    public function getExistingAirtableIds(): array
+    public function getExistingAirtableCoursePairs(): array
     {
         $rows = $this->pdo->query("
-            SELECT airtable_id FROM students WHERE airtable_id IS NOT NULL
+            SELECT airtable_id, course_id FROM students WHERE airtable_id IS NOT NULL
         ")->fetchAll();
 
-        $ids = [];
+        $pairs = [];
         foreach ($rows as $row) {
-            $ids[$row['airtable_id']] = true;
+            $pairs[$row['airtable_id'] . '::' . $row['course_id']] = true;
         }
-        return $ids;
+        return $pairs;
     }
 
     /**

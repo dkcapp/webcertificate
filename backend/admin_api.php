@@ -200,9 +200,9 @@ try {
             exit;
         }
 
-        $client      = new AirtableClient($apiKey, $baseId, $tableId);
-        $records     = $client->fetchAllRecords();
-        $existingIds = $studentRepo->getExistingAirtableIds();
+        $client        = new AirtableClient($apiKey, $baseId, $tableId);
+        $records       = $client->fetchAllRecords();
+        $existingPairs = $studentRepo->getExistingAirtableCoursePairs();
 
         // ดึงคอร์สทั้งหมดมาครั้งเดียว แล้ว index ด้วย short_name และ long_key
         $allCourses      = $courseRepo->listWithStudentCount();
@@ -234,9 +234,11 @@ try {
                 $mapped[$ourKey] = $f[$atKey] ?? '';
             }
 
+            $targetCourseId = $courseGroups[$courseName]['existing_id'] ?? 0;
+            $pairKey = $airtableRec['id'] . '::' . $targetCourseId;
             $courseGroups[$courseName]['students'][] = [
                 'airtable_id'      => $airtableRec['id'],
-                'already_imported' => isset($existingIds[$airtableRec['id']]),
+                'already_imported' => isset($existingPairs[$pairKey]),
                 'fields'           => $mapped,
             ];
         }
@@ -294,10 +296,10 @@ try {
         }
 
         // ดึงข้อมูลจาก Airtable ก่อน "นอก" transaction (เป็น network call ห้ามค้างอยู่ระหว่างเปิด transaction กับ DB)
-        $client      = new AirtableClient($apiKey, $baseId, $tableId);
-        $records     = $client->fetchAllRecords();
-        $existingIds = $studentRepo->getExistingAirtableIds();
-        $selectedSet = array_flip($selectedIds);
+        $client        = new AirtableClient($apiKey, $baseId, $tableId);
+        $records       = $client->fetchAllRecords();
+        $existingPairs = $studentRepo->getExistingAirtableCoursePairs();
+        $selectedSet   = array_flip($selectedIds);
 
         $pdo->beginTransaction();
         try {
@@ -335,8 +337,8 @@ try {
                 if ($recCourseName !== $courseName) {
                     continue; // กันเคสข้อมูลไม่ตรงคอร์สที่กำลัง import
                 }
-                if (isset($existingIds[$rec['id']])) {
-                    $skipped[] = ['airtable_id' => $rec['id'], 'reason' => 'นำเข้าไปแล้วก่อนหน้านี้'];
+                if (isset($existingPairs[$rec['id'] . '::' . $courseId])) {
+                    $skipped[] = ['airtable_id' => $rec['id'], 'reason' => 'นำเข้าไปแล้วก่อนหน้านี้ (คอร์สนี้)'];
                     continue;
                 }
 
@@ -394,9 +396,9 @@ try {
             exit;
         }
 
-        $client      = new AirtableClient($apiKey, $baseId, $tableId);
-        $records     = $client->fetchAllRecords();
-        $existingIds = $studentRepo->getExistingAirtableIds();
+        $client        = new AirtableClient($apiKey, $baseId, $tableId);
+        $records       = $client->fetchAllRecords();
+        $existingPairs = $studentRepo->getExistingAirtableCoursePairs();
 
         $imported = 0;
         $skipped  = [];
@@ -405,16 +407,17 @@ try {
             if (!isset($selectedSet[$rec['id']])) {
                 continue; // ไม่ได้ถูกเลือกไว้
             }
-            if (isset($existingIds[$rec['id']])) {
-                $skipped[] = ['airtable_id' => $rec['id'], 'reason' => 'นำเข้าไปแล้วก่อนหน้านี้'];
-                continue;
-            }
 
             $f          = $rec['fields'] ?? [];
             $courseName = trim($f[AIRTABLE_COURSE_FIELD] ?? '');
             $course     = $courseName !== '' ? $courseRepo->findByShortName($courseName) : null;
             if (!$course) {
                 $skipped[] = ['airtable_id' => $rec['id'], 'reason' => "ไม่พบคอร์สชื่อ '$courseName' ในระบบ"];
+                continue;
+            }
+
+            if (isset($existingPairs[$rec['id'] . '::' . $course['id']])) {
+                $skipped[] = ['airtable_id' => $rec['id'], 'reason' => 'นำเข้าไปแล้วก่อนหน้านี้ (คอร์สนี้)'];
                 continue;
             }
 
