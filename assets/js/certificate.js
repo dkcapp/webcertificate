@@ -2,7 +2,7 @@
 // ตรรกะหน้าดาวน์โหลดใบประกาศ: โหลดข้อมูล, dropdown เลือกปี/คอร์ส/ชื่อ, พรีวิว, ดาวน์โหลด PNG
 
 document.getElementById("footer-year").textContent =
-  new Date().getFullYear() + 2543;
+  new Date().getFullYear() + 543;
 
 const CERT_BG = "assets/images/main1.png";
 const COL_FIRSTNAME = "ชื่อ";
