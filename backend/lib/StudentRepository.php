@@ -231,6 +231,28 @@ class StudentRepository
     }
 
     /**
+     * ดึงคู่ email+course_id ทั้งหมดที่มีอยู่แล้วใน database
+     * คืนค่าเป็น array แบบ ['email@example.com|42' => true, ...] เพื่อเช็คแบบ O(1)
+     * ใช้เทียบว่าคนนี้สมัครคอร์สนี้ไปแล้วหรือยัง ไม่ว่าจะเข้ามาจาก webhook หรือ Airtable import
+     * email จะถูก lowercase และ trim ก่อนเปรียบเทียบเสมอ กันเคสตัวพิมพ์ใหญ่เล็กต่างกัน
+     */
+    public function getExistingByEmailAndCourse(): array
+    {
+        $rows = $this->pdo->query("
+            SELECT LOWER(TRIM(email)) AS email, course_id
+            FROM students
+            WHERE email IS NOT NULL AND email <> ''
+        ")->fetchAll();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $key       = $row['email'] . '|' . $row['course_id'];
+            $map[$key] = true;
+        }
+        return $map;
+    }
+
+    /**
      * ดึงคู่ (airtable_id + course_id) ที่มีอยู่แล้วใน Neon
      * คืนค่าเป็น array แบบ ['recXXXX::12' => true, ...] เพื่อเช็คแบบ O(1)
      * เช็คเป็น "คู่" แทนที่จะเช็ค airtable_id เดี่ยว ๆ เพราะคนคนเดียวกันสมัครได้หลายคอร์ส

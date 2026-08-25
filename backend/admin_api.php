@@ -200,9 +200,9 @@ try {
             exit;
         }
 
-        $client        = new AirtableClient($apiKey, $baseId, $tableId);
-        $records       = $client->fetchAllRecords();
-        $existingPairs = $studentRepo->getExistingAirtableCoursePairs();
+        $client              = new AirtableClient($apiKey, $baseId, $tableId);
+        $records             = $client->fetchAllRecords();
+        $existingEmailCourse = $studentRepo->getExistingByEmailAndCourse();
 
         // ดึงคอร์สทั้งหมดมาครั้งเดียว แล้ว index ด้วย short_name และ long_key
         $allCourses      = $courseRepo->listWithStudentCount();
@@ -234,11 +234,18 @@ try {
                 $mapped[$ourKey] = $f[$atKey] ?? '';
             }
 
-            $targetCourseId = $courseGroups[$courseName]['existing_id'] ?? 0;
-            $pairKey = $airtableRec['id'] . '::' . $targetCourseId;
+            // เช็คด้วย email + course_id แทน airtable_id
+            // ครอบคลุมทั้งคนที่เข้ามาจาก webhook (ไม่มี airtable_id) และจาก Airtable import
+            $targetCourseId  = $courseGroups[$courseName]['existing_id'] ?? 0;
+            $emailFromAirtable = strtolower(trim($f['Email'] ?? ''));
+            $emailCourseKey  = $emailFromAirtable . '|' . $targetCourseId;
+            $alreadyImported = $targetCourseId > 0
+                && $emailFromAirtable !== ''
+                && isset($existingEmailCourse[$emailCourseKey]);
+
             $courseGroups[$courseName]['students'][] = [
                 'airtable_id'      => $airtableRec['id'],
-                'already_imported' => isset($existingPairs[$pairKey]),
+                'already_imported' => $alreadyImported,
                 'fields'           => $mapped,
             ];
         }
@@ -296,10 +303,10 @@ try {
         }
 
         // ดึงข้อมูลจาก Airtable ก่อน "นอก" transaction (เป็น network call ห้ามค้างอยู่ระหว่างเปิด transaction กับ DB)
-        $client        = new AirtableClient($apiKey, $baseId, $tableId);
-        $records       = $client->fetchAllRecords();
-        $existingPairs = $studentRepo->getExistingAirtableCoursePairs();
-        $selectedSet   = array_flip($selectedIds);
+        $client              = new AirtableClient($apiKey, $baseId, $tableId);
+        $records             = $client->fetchAllRecords();
+        $existingEmailCourse = $studentRepo->getExistingByEmailAndCourse();
+        $selectedSet         = array_flip($selectedIds);
 
         $pdo->beginTransaction();
         try {
@@ -337,8 +344,10 @@ try {
                 if ($recCourseName !== $courseName) {
                     continue; // กันเคสข้อมูลไม่ตรงคอร์สที่กำลัง import
                 }
-                if (isset($existingPairs[$rec['id'] . '::' . $courseId])) {
-                    $skipped[] = ['airtable_id' => $rec['id'], 'reason' => 'นำเข้าไปแล้วก่อนหน้านี้ (คอร์สนี้)'];
+                $emailFromAirtable = strtolower(trim($f['Email'] ?? ''));
+                $emailCourseKey    = $emailFromAirtable . '|' . $courseId;
+                if ($emailFromAirtable !== '' && isset($existingEmailCourse[$emailCourseKey])) {
+                    $skipped[] = ['airtable_id' => $rec['id'], 'reason' => 'มีข้อมูลคนนี้ในคอร์สนี้อยู่แล้ว (email ซ้ำ)'];
                     continue;
                 }
 
