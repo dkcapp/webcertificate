@@ -67,17 +67,136 @@ function switchTab(tab) {
   document
     .getElementById("tab-manage")
     .classList.toggle("active", tab === "manage");
+  document
+    .getElementById("tab-approvals")
+    .classList.toggle("active", tab === "approvals");
   const dlView = document.getElementById("view-download");
   const adminView = document.getElementById("admin-data-view");
-  if (tab === "download") {
-    dlView.style.display = "flex";
-    adminView.classList.remove("visible");
-  } else {
-    dlView.style.display = "none";
-    adminView.classList.add("visible");
+  const apView = document.getElementById("view-approvals");
+  dlView.style.display = tab === "download" ? "flex" : "none";
+  adminView.classList.toggle("visible", tab === "manage");
+  apView.classList.toggle("visible", tab === "approvals");
+  if (tab === "manage") {
     if (currentAdminSection === "courses") loadCoursesTable();
     else loadStudentsTable();
+  } else if (tab === "approvals") {
+    loadApprovalsPage();
   }
+}
+
+// ===== แท็บคำขออนุมัติ (ดึงจาก Portal ผ่าน backend) =====
+let approvalFilters = { q: "", status: "" };
+let approvalSearchTimer = null;
+const AP_STATUS_LABEL = { approved: "อนุมัติแล้ว", rejected: "ไม่อนุมัติ", pending: "รออนุมัติ" };
+
+function formatThaiDateTime(utcStr) {
+  if (!utcStr) return "—";
+  const d = new Date(String(utcStr).replace(" ", "T") + (/[zZ]|[+-]\d\d:?\d\d$/.test(utcStr) ? "" : "Z"));
+  if (isNaN(d)) return escHtml(String(utcStr));
+  return d.toLocaleString("th-TH", {
+    timeZone: "Asia/Bangkok",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function loadApprovalsPage() {
+  const area = document.getElementById("approvals-content-area");
+  area.innerHTML = `
+<div class="admin-page-title">
+  <h2>คำขออนุมัติ</h2>
+  <span class="badge-count" id="ap-count-badge">0 รายการ</span>
+</div>
+<div class="ap-summary" id="ap-summary"></div>
+<div class="admin-toolbar">
+  <div class="admin-search">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" id="ap-search" placeholder="ค้นหาชื่อ / คอร์ส / ผู้ขอ / หัวหน้ากอง..." oninput="onApprovalSearchInput()" autocomplete="off" value="${escHtml(approvalFilters.q)}">
+  </div>
+  <button class="btn-sm" onclick="fetchApprovals(1)">รีเฟรช</button>
+</div>
+<div class="table-card"><div style="overflow-x:auto">
+<table class="data-table">
+  <thead><tr>
+    <th>วันที่ขอ</th><th>ผู้สมัคร</th><th>คอร์ส</th><th>ประเภท</th>
+    <th>ผู้ขอ (AD)</th><th>หัวหน้ากอง</th><th>สถานะ</th><th>อัปเดตล่าสุด</th>
+  </tr></thead>
+  <tbody id="ap-tbody"></tbody>
+</table></div></div>
+<div class="pagination" id="ap-pagination"></div>`;
+  fetchApprovals(1);
+}
+
+function onApprovalSearchInput() {
+  clearTimeout(approvalSearchTimer);
+  approvalSearchTimer = setTimeout(() => {
+    approvalFilters.q = document.getElementById("ap-search").value.trim();
+    fetchApprovals(1);
+  }, 350);
+}
+
+function setApprovalStatus(status) {
+  approvalFilters.status = status;
+  fetchApprovals(1);
+}
+
+async function fetchApprovals(page = 1) {
+  const tbody = document.getElementById("ap-tbody");
+  if (!tbody) return;
+  tbody.innerHTML =
+    '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:1.5rem">กำลังโหลด...</td></tr>';
+  const params = new URLSearchParams({ action: "list_approval_requests", page, per_page: 20 });
+  if (approvalFilters.q) params.set("q", approvalFilters.q);
+  if (approvalFilters.status) params.set("status", approvalFilters.status);
+  let result;
+  try {
+    const res = await fetch("backend/admin_api.php?" + params.toString());
+    result = await res.json();
+  } catch (e) {
+    result = { ok: false, error: "โหลดข้อมูลไม่สำเร็จ" };
+  }
+  if (!result.ok) {
+    tbody.innerHTML = `<tr><td colspan="8" style="color:var(--red);padding:1.5rem;text-align:center">❌ ${escHtml(result.error || "เกิดข้อผิดพลาด")}</td></tr>`;
+    return;
+  }
+  const d = result.data;
+  const s = d.summary || {};
+  const chip = (key, label, n) =>
+    `<button class="ap-chip ${approvalFilters.status === key ? "active" : ""}" onclick="setApprovalStatus('${key}')">${label} ${n ?? 0}</button>`;
+  document.getElementById("ap-summary").innerHTML =
+    chip("", "ทั้งหมด", s.total) + chip("pending", "รออนุมัติ", s.pending) +
+    chip("approved", "อนุมัติแล้ว", s.approved) + chip("rejected", "ไม่อนุมัติ", s.rejected);
+  document.getElementById("ap-count-badge").textContent = `${d.total} รายการ`;
+
+  tbody.innerHTML =
+    (d.items || [])
+      .map((r) => {
+        const st = String(r.status || "").toUpperCase();
+        const kind = st.startsWith("APPROVE") ? "approved" : st.startsWith("REJECT") ? "rejected" : "pending";
+        const label = AP_STATUS_LABEL[kind] || escHtml(r.status || "—");
+        return `<tr>
+    <td>${formatThaiDateTime(r.created_at)}</td>
+    <td>${escHtml(r.applicant_name || "—")}</td>
+    <td>${escHtml(r.course || "—")}</td>
+    <td class="cell-muted">${escHtml(r.member_type || "—")}</td>
+    <td>${escHtml(r.requester_name || r.requester_ad || "—")}<div class="cell-muted" style="font-size:11px">${escHtml(r.requester_ad || "")}</div></td>
+    <td>${escHtml(r.approver_name || r.approver_ad || "—")}<div class="cell-muted" style="font-size:11px">${escHtml(r.approver_ad || "")}</div></td>
+    <td><span class="ap-status ${escHtml(kind)}">${label}</span></td>
+    <td>${formatThaiDateTime(r.updated_at)}</td>
+  </tr>`;
+      })
+      .join("") ||
+    '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:1.5rem">ไม่พบข้อมูล</td></tr>';
+
+  const totalPages = Math.max(1, Math.ceil((d.total || 0) / (d.per_page || 20)));
+  const cur = d.page || page;
+  document.getElementById("ap-pagination").innerHTML = `
+  <button class="page-btn" onclick="fetchApprovals(${cur - 1})" ${cur <= 1 ? "disabled" : ""}><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+  <span class="page-info">หน้า ${cur} / ${totalPages}</span>
+  <button class="page-btn" onclick="fetchApprovals(${cur + 1})" ${cur >= totalPages ? "disabled" : ""}><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>`;
 }
 
 function adminNav(section) {

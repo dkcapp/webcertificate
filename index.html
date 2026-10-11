@@ -58,6 +58,12 @@
             <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" /></svg
           >จัดการข้อมูล
         </button>
+        <button class="atab" id="tab-approvals" onclick="switchTab('approvals')">
+          <svg viewBox="0 0 24 24">
+            <path d="M9 11l3 3L22 4" />
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg
+          >คำขออนุมัติ
+        </button>
       </nav>
     </header>
 
@@ -328,6 +334,10 @@
         </aside>
         <div class="admin-content" id="admin-content-area"></div>
       </div>
+      <div id="view-approvals">
+        <div class="admin-content" id="approvals-content-area"></div>
+      </div>
+
     </div>
 
     <footer class="site-footer-new">

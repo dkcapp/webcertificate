@@ -180,6 +180,54 @@ body {
   display: flex;
 }
 
+#view-approvals {
+  display: none;
+  flex: 1;
+  flex-direction: row;
+  min-height: 0;
+}
+
+#view-approvals.visible {
+  display: flex;
+}
+
+.ap-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.ap-chip {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--white);
+  color: var(--text2);
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.ap-chip.active {
+  background: var(--blue-light);
+  border-color: rgba(37, 99, 235, 0.3);
+  color: var(--blue);
+}
+
+.ap-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ap-status.approved { background: #d1fae5; color: #047857; }
+.ap-status.rejected { background: #fee2e2; color: #b91c1c; }
+.ap-status.pending { background: #fef3c7; color: #b45309; }
+
+
 .sidebar {
   width: 300px;
   min-width: 300px;

@@ -21,6 +21,7 @@ require_once __DIR__ . '/../database/config.php';
 require_once __DIR__ . '/lib/CourseRepository.php';
 require_once __DIR__ . '/lib/StudentRepository.php';
 require_once __DIR__ . '/lib/AirtableClient.php';
+require_once __DIR__ . '/lib/PortalClient.php';
 
 $pdo         = getDB();
 $courseRepo  = new CourseRepository($pdo);
@@ -451,6 +452,25 @@ try {
         }
 
         echo json_encode(['ok' => true, 'imported' => $imported, 'skipped' => $skipped]);
+        exit;
+    }
+
+    if ($action === 'list_approval_requests') {
+        try {
+            $portal = PortalClient::fromEnv();
+            $data = $portal->listRequests([
+                'page'     => $_GET['page'] ?? '',
+                'per_page' => $_GET['per_page'] ?? '',
+                'status'   => $_GET['status'] ?? '',
+                'q'        => $_GET['q'] ?? '',
+            ]);
+            echo json_encode(['ok' => true, 'data' => $data], JSON_UNESCAPED_UNICODE);
+        } catch (Throwable $e) {
+            // ข้อความจาก PortalClient เขียนเองและไม่มีความลับ แสดงให้ admin เห็นได้
+            error_log('[portal] ' . $e->getMessage());
+            http_response_code(502);
+            echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
         exit;
     }
 

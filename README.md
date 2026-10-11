@@ -418,6 +418,9 @@ Endpoint สำหรับหน้า "เปิดรับสมัคร" (
    DB_USER=neondb_owner
    DB_PASS=your_db_password
 
+   PORTAL_BASE_URL=https://dkc-oauth-portal.dkcapp.workers.dev
+   PORTAL_ADMIN_API_KEY=same_value_as_worker_ADMIN_API_KEY
+
    AIRTABLE_API_KEY=your_airtable_key
    AIRTABLE_BASE_ID=your_base_id
    AIRTABLE_TABLE_ID=your_table_id
@@ -466,6 +469,8 @@ Endpoint สำหรับหน้า "เปิดรับสมัคร" (
 | `DB_PASS` | Password | `database/config.php` |
 | `ADMIN_USER` | Username สำหรับ login admin | `backend/auth.php` |
 | `ADMIN_PASS` | Password สำหรับ login admin | `backend/auth.php` |
+| `PORTAL_BASE_URL` | URL ของ DKC OAuth Portal (Cloudflare Worker) | `backend/lib/PortalClient.php` |
+| `PORTAL_ADMIN_API_KEY` | คีย์เรียก `/api/admin/requests` ของ Portal (ต้องตรงกับ `ADMIN_API_KEY` ของ Worker) | `backend/lib/PortalClient.php` |
 | `AIRTABLE_API_KEY` | Personal Access Token จาก Airtable | `backend/admin_api.php` |
 | `AIRTABLE_BASE_ID` | Base ID ของ Airtable (ขึ้นต้นด้วย `app`) | `backend/admin_api.php` |
 | `AIRTABLE_TABLE_ID` | Table ID ของ Airtable (ขึ้นต้นด้วย `tbl`) | `backend/admin_api.php` |
@@ -517,3 +522,11 @@ PHP บน Windows อาจไม่มี SSL certificate bundle ทำให�
 เพื่อรองรับกรณีที่แอดมินเพิ่มคอร์สใหม่ใน JotForm dropdown ก่อนที่จะมาสร้างคอร์สในเว็บใหม่ (ทำให้ webhook หาคอร์สไม่เจอชั่วคราว) ระบบออกแบบให้**ไม่ auto-create คอร์ส**เพื่อรักษาความสะอาดของข้อมูล แต่จะบันทึก log ไว้ให้ตรวจสอบได้ และมีฟีเจอร์ "นำเข้าข้อมูลจาก Airtable" คอยเป็นทางแก้ย้อนหลัง — กด import จาก Airtable ได้ทุกเมื่อเพื่อดึงรายชื่อที่ตกหล่นกลับเข้าระบบ
 
 ส่วนปัญหาเว็บ "หลับ" ของ hosting แผนฟรีก็แก้ด้วย UptimeRobot ทำให้ใช้งานได้ต่อเนื่องโดยไม่ต้องเสียค่าใช้จ่ายเพิ่ม
+
+## แท็บ "คำขออนุมัติ" (Admin)
+
+แสดงคำขออนุมัติ CAS ของทุกคนที่ส่งจาก DKC OAuth Portal (ติดตามสถานะอย่างเดียว ไม่กระทบใบประกาศ)
+
+`admin.js (fetchApprovals)` → `backend/admin_api.php?action=list_approval_requests` → `PortalClient.php` → Portal `GET /api/admin/requests` (Bearer `PORTAL_ADMIN_API_KEY`) → Cloudflare D1
+
+รองรับ `page`, `per_page`, `status` (approved|rejected|pending), `q` คีย์อยู่ฝั่ง server เท่านั้น
