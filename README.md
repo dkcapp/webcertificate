@@ -1,6 +1,6 @@
 # ระบบออกใบประกาศนียบัตร — ศูนย์อบรมคอมพิวเตอร์ วัดพระธรรมกาย
 
-ระบบออกใบประกาศนียบัตรให้ผู้เข้าอบรม พร้อมระบบจัดการหลักสูตร/รายชื่อผู้เรียน และรับสมัครผ่านฟอร์มออนไลน์ของบริษัทแบบอัตโนมัติ (บันทึกเข้าทั้ง Airtable เดิมและระบบใหม่พร้อมกัน)
+ระบบออกใบประกาศนียบัตรให้ผู้เข้าอบรม พร้อมระบบจัดการหลักสูตร/รายชื่อผู้เรียน รับสมัครผ่านฟอร์มออนไลน์ของบริษัทแบบอัตโนมัติ (บันทึกเข้าทั้ง Airtable เดิมและระบบใหม่พร้อมกัน) และ **ส่งคำขออนุมัติจากหัวหน้ากอง (CAS) ให้ผู้สมัครอัตโนมัติหลังกรอกฟอร์ม** พร้อมแท็บให้แอดมินดูสถานะคำขอทั้งหมด
 
 **เว็บไซต์ใช้งานจริง:** https://comtrain-webcertificate.onrender.com/
 
@@ -14,17 +14,19 @@
 5. [โครงสร้างฐานข้อมูล](#โครงสร้างฐานข้อมูล)
 6. [Data Flow แต่ละสถานการณ์](#data-flow-แต่ละสถานการณ์)
 7. [การเชื่อมต่อ JotForm ของบริษัท (Dual-write เข้า Airtable + เว็บใหม่)](#การเชื่อมต่อ-jotform-ของบริษัท-dual-write-เข้า-airtable--เว็บใหม่)
-8. [วิธีรันโปรเจกต์บนเครื่องตัวเอง (Local Setup)](#วิธีรันโปรเจกต์บนเครื่องตัวเอง-local-setup)
-9. [Environment Variables ที่ต้องตั้งค่า](#environment-variables-ที่ต้องตั้งค่า)
-10. [ข้อจำกัดและวิธีแก้ที่ใช้อยู่](#ข้อจำกัดและวิธีแก้ที่ใช้อยู่)
-11. [ปัญหาที่เคยเจอ และวิธีแก้ (Troubleshooting Log)](#ปัญหาที่เคยเจอ-และวิธีแก้-troubleshooting-log)
-12. [ประวัติการพัฒนา](#ประวัติการพัฒนา)
+8. [ระบบขออนุมัติ (CAS) — Portal + หน้า Thank you + แท็บแอดมิน](#ระบบขออนุมัติ-cas--portal--หน้า-thank-you--แท็บแอดมิน)
+9. [วิธีรันโปรเจกต์บนเครื่องตัวเอง (Local Setup)](#วิธีรันโปรเจกต์บนเครื่องตัวเอง-local-setup)
+10. [Environment Variables ที่ต้องตั้งค่า](#environment-variables-ที่ต้องตั้งค่า)
+11. [ข้อจำกัดและวิธีแก้ที่ใช้อยู่](#ข้อจำกัดและวิธีแก้ที่ใช้อยู่)
+12. [ปัญหาที่เคยเจอ และวิธีแก้ (Troubleshooting Log)](#ปัญหาที่เคยเจอ-และวิธีแก้-troubleshooting-log)
+13. [ประวัติการพัฒนา](#ประวัติการพัฒนา)
+14. [สถานะปัจจุบันและงานที่เหลือ](#สถานะปัจจุบันและงานที่เหลือ)
 
 ---
 
 ## ภาพรวมระบบทำอะไรได้บ้าง
 
-ระบบนี้มี 3 กลุ่มผู้ใช้งาน:
+ระบบนี้มี 3 กลุ่มผู้ใช้งาน (และมีระบบขออนุมัติทำงานต่อเนื่องจากกลุ่มที่ 3 — ดูหัวข้อ [ระบบขออนุมัติ](#ระบบขออนุมัติ-cas--portal--หน้า-thank-you--แท็บแอดมิน)):
 
 ### 1. ผู้เข้าอบรม (หน้าแรกของเว็บ — Public)
 เลือก **ปีที่อบรม → หลักสูตร → ชื่อตัวเอง** แล้วกดดาวน์โหลดใบประกาศนียบัตรเป็นไฟล์ภาพ (PNG) ได้ทันที ระบบจะดึงชื่อ-นามสกุลมาใส่ในใบประกาศให้อัตโนมัติ พร้อม QR Code สำหรับตรวจสอบความถูกต้อง (ถ้าหลักสูตรนั้นตั้งค่า verify URL ไว้)
@@ -33,12 +35,15 @@
 - **จัดการหลักสูตร** — เพิ่ม/แก้ไข/ลบหลักสูตร, วันที่อบรม, ปี พ.ศ., ลิงก์ QR verify (มีทั้งชื่อสั้น `short_name` และชื่อยาว `long_key`)
 - **จัดการรายชื่อผู้เรียน** — ดู/ค้นหา/แก้ไข/ลบ พร้อมแบ่งหน้าและเรียงลำดับ
 - **เปิด/ปิดรับสมัคร** — เลือกหลักสูตรที่เปิดให้สมัคร แล้วกด "Sync to JotForm" เพื่ออัปเดต dropdown ของฟอร์มให้ตรงกับหลักสูตรที่เปิดอยู่จริง (แสดงและ sync เป็น**ชื่อยาว** `long_key` ไม่ใช่ชื่อย่ออีกต่อไป — ดูหัวข้อ [Data Flow ข้อ 3](#3-admin-เปิดปิดคอร์สแล้ว-sync-ไปยัง-jotform))
+- **คำขออนุมัติ** — แท็บที่ 3 บนแถบบน แสดงคำขออนุมัติของทุกคนที่ส่งผ่าน DKC Portal พร้อมสถานะ (รออนุมัติ / อนุมัติแล้ว / ไม่อนุมัติ) ค้นหาและกรองสถานะได้ ติดตามสถานะอย่างเดียว ไม่กระทบการออกใบประกาศ
 - **นำเข้าข้อมูลจาก Airtable** — ดึงรายชื่อคอร์สและผู้สมัครจาก Airtable (ทั้งชุดข้อมูลเก่า และรายการที่ตกหล่นจาก webhook เพราะยังไม่มีคอร์สในระบบ) เปรียบเทียบกับคอร์สในระบบ แบ่งเป็น "คอร์สใหม่" และ "คอร์สที่มีอยู่แล้ว" แล้วเลือกนำเข้าเป็นรายคอร์ส
 
 ### 3. ผู้สมัครเรียนใหม่ (ภายนอกบริษัท ผ่าน JotForm ของบริษัท)
 กรอกฟอร์มสมัครที่ **https://form.jotform.com/231301336713444** (ฟอร์มจริงของบริษัท ไม่ใช่ฟอร์มทดลองอีกต่อไป) เลือกหลักสูตรจาก dropdown แล้วกด Submit — ข้อมูลจะถูกส่งเข้า **2 ที่พร้อมกันโดยอัตโนมัติ**:
 1. **Airtable ของบริษัท** (การเชื่อมต่อเดิม ไม่ถูกแตะต้อง ทำงานเหมือนเดิมทุกประการ)
 2. **Neon (ระบบเว็บใหม่นี้)** ผ่าน Webhook ที่เพิ่มเข้ามาเสริม
+
+จากนั้น JotForm พาผู้สมัครไปที่หน้า **Thank you ของเว็บนี้** (`thankyou.html`) ซึ่งตัดสินในโค้ดว่า ถ้าประเภทสมาชิกเป็น "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" (ไม่มีบัญชี AD) แสดงข้อความขอบคุณพร้อมชื่อ แต่ถ้าเป็นประเภทอื่น (มีบัญชี AD และกอง) จะส่งต่อไป DKC Portal เพื่อล็อกอินและ **ส่งคำขออนุมัติไปหัวหน้ากองให้อัตโนมัติ** แล้วกลับมาแสดงผลที่หน้า Thank you เดิม
 
 > ⚠️ **สำคัญ:** แอดมินยังคงไปเปิด/ปิดคอร์สและแก้ไข dropdown ที่หน้า **JotForm โดยตรง** เหมือนระบบเดิม ไม่ได้ทำผ่านเว็บนี้อีกต่อไป (ฟีเจอร์ "เปิดรับสมัคร" ในเว็บยังมีโค้ดอยู่ แต่ไม่ได้ใช้งานจริงกับฟอร์มบริษัท) — ดูรายละเอียดที่หัวข้อ [การเชื่อมต่อ JotForm ของบริษัท](#การเชื่อมต่อ-jotform-ของบริษัท-dual-write-เข้า-airtable--เว็บใหม่)
 
@@ -47,6 +52,22 @@
 ## สถาปัตยกรรมระบบ (System Architecture)
 
 ![System Architecture Diagram](assets/docs/architecture-diagram.png)
+
+### ระบบขออนุมัติ: 3 ระบบทำงานร่วมกัน
+
+```
+[JotForm] ──redirect──▶ [เว็บใบประกาศ: thankyou.html] ──(ประเภทต้องขออนุมัติ)──▶ [DKC Portal: /submit]
+ (Render, PHP)                  ▲                                                  (Cloudflare Worker + D1)
+                                │                                                    │ ล็อกอิน DKC (OAuth)
+                                │                                                    │ ส่งคำขอไป CAS
+                                └──────── redirect กลับพร้อม ?ref=JF-... ◀───────────┘
+        thankyou.html ──▶ backend/approval_result.php ──(Bearer key, server-to-server)──▶ Portal /api/admin/request?ref=
+        แท็บ "คำขออนุมัติ" ──▶ backend/admin_api.php ──────────────────────────────────▶ Portal /api/admin/requests
+```
+
+- **เว็บใบประกาศ (Render)** ไม่ได้เก็บข้อมูลคำขอเอง และไม่ได้เรียก CAS โดยตรง
+- **DKC Portal (Cloudflare Worker `dkc-oauth-portal`)** เป็นผู้ล็อกอินผู้ใช้ผ่าน DKC OAuth ส่งคำขอไป CAS และเก็บประวัติใน **Cloudflare D1** (`dkc-portal-db`, ตาราง `approval_requests`)
+- เว็บใบประกาศอ่านข้อมูลจาก Portal ผ่านคีย์ `PORTAL_ADMIN_API_KEY` ที่อยู่ฝั่ง server เท่านั้น เบราว์เซอร์ไม่เห็นคีย์
 
 ### สถาปัตยกรรมภายในฝั่ง Backend
 
@@ -95,6 +116,7 @@ index.html (markup เท่านั้น)
 | **Container** | Docker (`php:8.2-apache` + extension `pdo_pgsql`) | กำหนด environment ให้ Render รันได้ตรงตามที่ต้องการ |
 | **รับสมัครออนไลน์** | [JotForm](https://www.jotform.com) — **ฟอร์มบริษัทจริง `231301336713444`** | ฟอร์มให้คนภายนอกกรอกสมัครเรียน ส่งข้อมูลเข้า Airtable บริษัท (เดิม) + Webhook ของเว็บนี้ (ใหม่) พร้อมกัน |
 | **นำเข้าข้อมูลเก่า/ตกหล่น** | [Airtable REST API](https://airtable.com/developers/web/api/introduction) | ดึงรายชื่อผู้สมัครและคอร์สจาก Airtable บริษัท นำเข้าสู่ Neon (ทั้งข้อมูลเก่าครั้งเดียว และรายการที่ webhook หาไม่คอร์สเจอ) |
+| **ระบบขออนุมัติ (Portal)** | Cloudflare Workers + D1 (SQLite) + DKC OAuth/CAS (`oauth.dhammakaya.network`) | ล็อกอินผู้ใช้ ส่งคำขออนุมัติถึงหัวหน้ากอง เก็บประวัติ/สถานะคำขอ (โค้ดอยู่ใน repo แยก `dkcapp/dkc-oauth-portal`) |
 | **Keep-alive** | [UptimeRobot](https://uptimerobot.com) | ปิงเว็บทุก 5 นาที ป้องกัน Render sleep หลัง idle 15 นาที |
 
 ---
@@ -107,6 +129,7 @@ webcertificate/
 │   .gitignore
 │   Dockerfile
 │   index.html
+│   thankyou.html           ← หน้า Thank you หลังกรอกฟอร์ม (ตัดสินประเภท + แสดงผลคำขออนุมัติ)
 │   README.md
 │
 ├───assets
@@ -131,6 +154,7 @@ webcertificate/
 │   │   admin_api.php
 │   │   api.php
 │   │   auth.php
+│   │   approval_result.php     ← endpoint สาธารณะให้ thankyou.html ถามผลคำขอ (ตามรหัสอ้างอิง)
 │   │   jotform_webhook.php     ← รับ webhook จากฟอร์มบริษัท 231301336713444
 │   │
 │   └───lib
@@ -138,6 +162,7 @@ webcertificate/
 │           CourseRepository.php
 │           error_handler.php
 │           load_env.php
+│           PortalClient.php
 │           require_admin.php
 │           StudentRepository.php
 │
@@ -156,6 +181,18 @@ webcertificate/
 ### `index.html`
 Markup ล้วน ๆ ของหน้าเว็บทั้งหมด แบ่งเป็น 2 ส่วนหลักที่สลับกันด้วยแท็บ: หน้าดาวน์โหลดใบประกาศ (public) และหน้า Admin Panel (ต้อง login) ไม่มี CSS/JavaScript ฝังอยู่ในไฟล์นี้เลย
 
+### `thankyou.html`
+หน้า Thank you ของผู้สมัคร (ไฟล์เดียว มี CSS/JS ในตัว ไม่ผูกกับ `index.html`) JotForm พามาที่หน้านี้พร้อม `?name=&course=&type=` ทำงาน 3 แบบ:
+
+| สถานการณ์ | พฤติกรรม |
+|---|---|
+| มี `type` ที่ไม่ขึ้นต้นด้วย "ผู้นำบุญ" (พร้อมชื่อและคอร์ส) | `location.replace()` ไป Portal `/submit?name=&course=&type=` (ใช้ `replace` เพื่อไม่ให้กดย้อนกลับแล้วส่งคำขอซ้ำ) |
+| ประเภท "ผู้นำบุญ..." หรือไม่มี `type` | แสดง "ขอบคุณ คุณ[ชื่อ]" + หลักสูตร (ใส่ด้วย `textContent` ป้องกัน XSS และจำกัดความยาว) |
+| มี `?ref=JF-...` (Portal ส่งกลับมา) | เรียก `backend/approval_result.php` แล้วแสดง "ส่งคำขออนุมัติถึงหัวหน้ากองแล้ว" + ชื่อหัวหน้ากอง (หรือสถานะอนุมัติ/ไม่อนุมัติ) |
+| มี `?e=<code>` (ส่งไม่สำเร็จ) | แสดงข้อความตามรหัส `missing`/`cas`/`upstream`/`dup` + ปุ่ม "ลองส่งใหม่" (รับเฉพาะลิงก์ `/submit?...` ของ Portal ที่กำหนดไว้ในโค้ด กัน open redirect) |
+
+URL ของ Portal ในไฟล์นี้กำหนดไว้ในตัวแปร `PORTAL_URL` (ถ้าย้ายโดเมน Portal ต้องแก้ที่นี่ด้วย)
+
 ### `assets/css/style.css`
 สไตล์ทั้งหมดของเว็บ (สี, layout, responsive, animation) แยกออกจาก `index.html` เพื่อให้แก้ไขและอ่านง่ายขึ้น
 
@@ -166,7 +203,7 @@ Markup ล้วน ๆ ของหน้าเว็บทั้งหมด �
 ระบบ login/logout admin ฝั่ง frontend: เปิด/ปิด modal login, เรียก `backend/auth.php`, เก็บสถานะ session ไว้ใน `sessionStorage`, และแสดง/ซ่อนแท็บ admin ตามสถานะ
 
 ### `assets/js/admin.js`
-ตรรกะหน้า Admin Panel ทั้งหมด: สลับแท็บ, ตารางคอร์ส (ค้นหา/กรอง/เรียงลำดับ), ตารางรายชื่อผู้เรียน (ค้นหา/กรอง/เรียงลำดับ/แบ่งหน้า), modal เพิ่ม/แก้ไขข้อมูล, หน้าเปิดรับสมัคร (**แสดงชื่อคอร์สแบบยาว `long_key` เป็นหลัก + ชื่อย่อ `short_name` กำกับไว้ด้านล่างตัวเล็ก**) + ปุ่ม Sync to JotForm และหน้านำเข้าข้อมูลจาก Airtable (แสดงผลแบบกลุ่มคอร์ส)
+ตรรกะหน้า Admin Panel ทั้งหมด: สลับแท็บ (ดาวน์โหลด / จัดการข้อมูล / **คำขออนุมัติ** — `loadApprovalsPage()`, `fetchApprovals()` มีสรุปจำนวนกรองสถานะได้ ค้นหาแบบ debounce แบ่งหน้าละ 20 และแปลงเวลา UTC เป็นเวลาไทย), ตารางคอร์ส (ค้นหา/กรอง/เรียงลำดับ), ตารางรายชื่อผู้เรียน (ค้นหา/กรอง/เรียงลำดับ/แบ่งหน้า), modal เพิ่ม/แก้ไขข้อมูล, หน้าเปิดรับสมัคร (**แสดงชื่อคอร์สแบบยาว `long_key` เป็นหลัก + ชื่อย่อ `short_name` กำกับไว้ด้านล่างตัวเล็ก**) + ปุ่ม Sync to JotForm และหน้านำเข้าข้อมูลจาก Airtable (แสดงผลแบบกลุ่มคอร์ส)
 
 ### `backend/lib/load_env.php`
 โหลดไฟล์ `.env` เข้า environment อัตโนมัติตอนรันบนเครื่อง local — ทุก endpoint `require_once` ไฟล์นี้ไว้บนสุด บน Render ไม่มีไฟล์ `.env` ก็ข้ามไปเลยโดยไม่มีผลอะไร ออกแบบมาให้ใช้งานได้ทั้งสองสภาพแวดล้อมโดยไม่ต้องแก้โค้ด
@@ -215,7 +252,14 @@ Endpoint หลักสำหรับ CRUD ทั้งหมดในหน�
 | `get_student` | ดึงข้อมูลผู้เรียน 1 คนแบบละเอียด |
 | `add_student` / `update_student` / `delete_student` | จัดการรายชื่อผู้เรียน |
 | `airtable_preview` | ดึงข้อมูลจาก Airtable มา group ตามคอร์ส เปรียบเทียบกับคอร์สในระบบ แยกเป็น "คอร์สใหม่" / "คอร์สที่มีอยู่แล้ว" (query database แค่ครั้งเดียว ไม่ว่าจะมีกี่ record) — ใช้เมนูนี้ดึงทั้งข้อมูลเก่าทั้งหมด และผู้สมัครที่ webhook เคยหาคอร์สไม่เจอมาก่อน |
+| `list_approval_requests` | ดึงรายการคำขออนุมัติจาก Portal (ผ่าน `PortalClient`) รองรับ `page`, `per_page`, `status`, `q` — ถ้า Portal ผิดพลาดจะตอบ HTTP 502 พร้อมข้อความที่อ่านเข้าใจ (ไม่ผ่าน `send_error_response` เพราะข้อความเขียนเองและไม่มีความลับ) |
 | `airtable_import_course` | สร้างคอร์สใหม่ (ถ้าจำเป็น) + นำเข้านักเรียนที่เลือกในคอร์สนั้น ในทีเดียวภายใน transaction เดียวกัน |
+
+### `backend/lib/PortalClient.php`
+ตัวเชื่อมต่อ DKC Portal แบบ server-to-server (cURL, timeout 15 วินาที, ส่ง `Authorization: Bearer <PORTAL_ADMIN_API_KEY>`) อ่านค่าจาก environment variables ผ่าน `PortalClient::fromEnv()` เมธอดหลัก `listRequests()` (รายการ + สรุป ใช้กับแท็บแอดมิน) และ `getRequest($ref)` (ผลคำขอเดี่ยว ใช้กับหน้า Thank you) มีข้อความ error ภาษาไทยที่ไม่มีความลับสำหรับกรณีคีย์ไม่ตรง (401/403), Portal ยังไม่ได้ตั้งค่า (503) หรือตอบผิดปกติ
+
+### `backend/approval_result.php`
+Endpoint **สาธารณะ** (ไม่ต้อง login) สำหรับ `thankyou.html` รับ `?ref=` ที่ต้องตรงรูปแบบ `JF-<เลข 10–14 หลัก>-<hex 8 ตัว>` เรียก `PortalClient::getRequest()` แล้วตอบเฉพาะ `found`, `status` (`pending`/`approved`/`rejected`), `approver_name`, `portal_url` — **ไม่คืนข้อมูลผู้สมัครเลย** รหัสอ้างอิงสุ่มเดาไม่ได้จึงปลอดภัยพอสำหรับการแสดงผลแบบนี้
 
 ### `backend/active_courses.php`
 Endpoint สำหรับหน้า "เปิดรับสมัคร" (ต้อง login) อ่าน JotForm API Key/Form ID/Field ID จาก environment variables — **ปัจจุบันไม่ได้ใช้งานคู่กับฟอร์มบริษัทจริง** (แอดมินเปิด/ปิดคอร์สที่หน้า JotForm โดยตรงแทน) แต่โค้ดยังคงเก็บไว้เผื่อกลับมาใช้ในอนาคต:
@@ -229,7 +273,7 @@ Endpoint สำหรับหน้า "เปิดรับสมัคร" (
 ### `backend/jotform_webhook.php`
 **Endpoint สำคัญที่สุดในระบบ** — จุดเดียวที่ต้องเปิดรับ request จากภายนอกอินเทอร์เน็ตจริง ๆ (ไม่ต้อง login เพราะ JotForm server เป็นคนเรียก)
 
-**รับข้อมูลจากฟอร์มบริษัท `231301336713444`** (ไม่ใช่ฟอร์มทดลอง `261701468554460` อีกต่อไป — ฟอร์มทดลองเลิกใช้แล้ว) ทำงานดังนี้:
+**รับข้อมูลจากฟอร์มบริษัท `231301336713444`** (ฟอร์มทดลอง `261701468554460` ปัจจุบันใช้ทดสอบระบบขออนุมัติเท่านั้น ไม่ใช่ช่องทางรับสมัครจริง) ทำงานดังนี้:
 
 ```
 รับข้อมูลดิบจาก JotForm ผ่าน field 'rawRequest'
@@ -328,6 +372,26 @@ Endpoint สำหรับหน้า "เปิดรับสมัคร" (
 ```
 > **ใช้เมนูนี้เป็นทางแก้เวลา webhook หาคอร์สไม่เจอ** — เมื่อแอดมินเพิ่มคอร์สใหม่ใน JotForm dropdown ก่อนที่จะมาสร้างคอร์สในเว็บนี้ ผู้สมัครที่เลือกคอร์สนั้นจะยังเข้า Airtable ปกติ แต่ตกหล่นจาก Neon — แอดมินมาสร้างคอร์สให้ตรงชื่อ แล้วกดดึงข้อมูลจาก Airtable มานำเข้าย้อนหลังได้จากเมนูนี้
 
+### 5. ผู้สมัครขออนุมัติจากหัวหน้ากองอัตโนมัติ
+```
+[ผู้สมัคร] กรอกฟอร์ม JotForm → Submit (ข้อมูลเข้า Airtable + Neon ตามข้อ 2)
+        → JotForm redirect → thankyou.html?name=&course=&type=
+              ├─ ประเภท "ผู้นำบุญ..." → แสดง "ขอบคุณ คุณ[ชื่อ]" (จบ)
+              └─ ประเภทอื่น → location.replace → Portal /submit?name=&course=&type=
+                     → (ยังไม่มี ref) Portal สร้างรหัส JF-<เวลา>-<hex8> แล้ว redirect ให้ ref ติดใน URL
+                     → (ยังไม่ล็อกอิน) /auth/login → DKC OAuth → กลับมา /submit เดิม
+                     → Portal ส่งคำขอไป CAS (ผู้ขอ = บัญชี AD ที่ล็อกอิน, CAS หาหัวหน้ากองเอง)
+                     → บันทึกลง D1 (เฉพาะเมื่อ CAS รับสำเร็จ)
+                     → redirect → thankyou.html?ref=JF-...  (หรือ ?ref=...&e=<code>&retry=... ถ้าไม่สำเร็จ)
+        → thankyou.html เรียก approval_result.php → แสดงชื่อหัวหน้ากอง/สถานะ
+
+[หัวหน้ากอง] กดอนุมัติ/ปฏิเสธในระบบ CAS → CAS เรียก Portal /api/cas/callback
+        → Portal ถาม CAS ซ้ำเพื่อยืนยันสถานะจริง → อัปเดต D1 → แท็บ "คำขออนุมัติ" เห็นสถานะใหม่
+
+[แอดมิน] เปิดแท็บ "คำขออนุมัติ" → admin_api.php?action=list_approval_requests → Portal → D1
+```
+รายละเอียดเต็มดูที่หัวข้อ [ระบบขออนุมัติ](#ระบบขออนุมัติ-cas--portal--หน้า-thank-you--แท็บแอดมิน)
+
 ---
 
 ## การเชื่อมต่อ JotForm ของบริษัท (Dual-write เข้า Airtable + เว็บใหม่)
@@ -378,6 +442,22 @@ Endpoint สำหรับหน้า "เปิดรับสมัคร" (
 
 > ฟอร์มนี้ไม่มีช่อง "พรรษาที่" แยกจาก "อายุ" (รวมเป็นช่องเดียว) และไม่มีช่อง "สถานะหัวหน้ากอง" — ทั้งสองปล่อยเป็น `NULL` ในตาราง `students`
 
+### การตั้งค่า Thank You Page (เชื่อมกับระบบขออนุมัติ)
+
+ตั้งที่ฟอร์ม → **Settings → Thank You Page → Redirect to an external link after submission** ใส่ URL เดียว:
+
+```
+https://comtrain-webcertificate.onrender.com/thankyou.html?name={typeA110}%20{input111}&course={input93}&type={typeA}
+```
+
+- ตัวแปรในปีกกาคือ **Unique Name** ของฟิลด์: `typeA110` (ชื่อ), `input111` (นามสกุล), `input93` (คอร์ส), `typeA` (ประเภทสมาชิก) — ต้องตรวจให้ตรงกับฟอร์มที่ใช้ (ดูได้ที่ Properties → Advanced ของแต่ละฟิลด์)
+- `%20` ระหว่างชื่อกับนามสกุลคือช่องว่าง
+- **ไม่ต้องใช้ Conditions** — การแยกประเภทที่ต้องขออนุมัติทำในโค้ดของ `thankyou.html` แล้ว (ถ้าเคยตั้งเงื่อนไข "Change Thank You page" ไว้ ให้ลบออก ไม่เช่นนั้นผู้สมัครจะข้ามหน้านี้)
+- สวิตช์ "Redirect with HTTP POST" ให้ปิดไว้
+- ควรตั้ง/แก้ตอนไม่มีคนกรอกฟอร์มอยู่ และทดสอบ 2 กรณี: ประเภท "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" และประเภทอื่น
+
+> ⚠️ ถ้าโคลนฟอร์มมาทดสอบ ให้ลบ Integrations (Airtable/Webhook) ที่ติดมาด้วยก่อน มิฉะนั้นข้อมูลทดสอบจะไหลเข้าระบบจริง
+
 ### พฤติกรรมเมื่อหาคอร์สไม่เจอ
 
 ผู้สมัครจะ**ไม่เห็น error ใด ๆ**เลยครับ (JotForm แสดงหน้า Thank you ปกติเสมอ ไม่ว่า webhook ปลายทางจะสำเร็จหรือไม่) และ **Airtable บันทึกได้ปกติเสมอ** เพราะเป็น integration อิสระจาก webhook
@@ -394,6 +474,63 @@ Endpoint สำหรับหน้า "เปิดรับสมัคร" (
 - `[jotform_webhook] ERROR: ไม่พบคอร์สชื่อ '...' ในระบบ` = ตกหล่น ต้องไปสร้างคอร์สแล้วนำเข้าย้อนหลัง
 
 **ที่ 2 — JotForm เอง:** เปิดฟอร์ม → Settings → Integrations → Webhooks → ดู Log/History ของ integration นี้โดยเฉพาะ (กรองมาแล้วเฉพาะ webhook นี้ ไม่ปนกับ log อื่นของเว็บ)
+
+---
+
+## ระบบขออนุมัติ (CAS) — Portal + หน้า Thank you + แท็บแอดมิน
+
+### หลักการ
+- ผู้สมัครที่เลือกประเภทสมาชิกอื่นนอกจาก "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" **ทุกคนมีบัญชี AD และมีกอง** จึงส่งคำขออนุมัติถึงหัวหน้ากองของตนผ่านระบบ CAS ของ DKC ได้
+- ระบบ **ไม่ส่งชื่อหัวหน้ากองไปเอง** — ส่งเฉพาะบัญชีผู้ขอ แล้ว CAS หาหัวหน้ากองให้ (คืนมาที่ `ADApprover` / `HeadFullName`) ส่งถึงหัวหน้ากองคนเดียวเท่านั้น
+- การอนุมัติเป็น **การติดตามสถานะเท่านั้น** ไม่มีผลต่อการสมัคร การบันทึกลง Neon หรือการออกใบประกาศ
+- ข้อความถึงหัวหน้ากองสร้างอัตโนมัติ แก้โดยผู้ขอไม่ได้: หัวข้อ `ขออนุมัติสมัครอบรม: [คอร์ส]` และข้อความ `ขออนุมัติให้ [ชื่อ] สมัครเรียน [คอร์ส] ในฐานะ [ประเภทสมาชิก]`
+- `ApproveType` ตั้งไว้ที่ 1 (อนุมัติโดยหัวหน้ากอง) หากต้องเปลี่ยนเป็น 2 แก้ที่ `/submit` ใน Portal
+
+### DKC Portal (repo `dkcapp/dkc-oauth-portal` — Cloudflare Worker)
+Deploy โดย push ขึ้น GitHub `main` แล้ว Cloudflare build เอง (`https://dkc-oauth-portal.dkcapp.workers.dev`) Route ที่เกี่ยวข้องกับระบบนี้:
+
+| Route | ต้อง login | หน้าที่ |
+|---|---|---|
+| `GET /submit?name=&course=&type=[&ref=]` | ล็อกอินให้เองถ้ายังไม่ได้ | สร้าง `ref` (ถ้ายังไม่มี) → ส่งคำขอ CAS → บันทึก D1 → redirect ไป `THANKYOU_URL` (`?ref=` สำเร็จ / `?ref=&e=&retry=` ไม่สำเร็จ) ถ้ามี `ref` นี้ใน D1 แล้ว (รีเฟรช/ล็อกอินซ้ำ) จะไม่ส่งซ้ำ |
+| `GET /api/admin/requests` | Bearer `ADMIN_API_KEY` | รายการ + สรุปสำหรับแท็บแอดมิน (`page`, `per_page` ≤ 100, `status`, `q`) |
+| `GET /api/admin/request?ref=` | Bearer `ADMIN_API_KEY` | ผลคำขอเดี่ยว (`found`, `status`, `approver_name`, `created_at`) สำหรับหน้า Thank you |
+| `GET /api/cas/callback` | ไม่ต้อง (CAS เรียก) | ถาม CAS ซ้ำ (`reqstat`) เพื่อยืนยันสถานะจริง แล้วอัปเดต D1 ไม่เชื่อสถานะใน query string |
+| `/api/cas/request`, `/api/cas/status`, `/api/cas/history`, `/app` (หน้า Portal) | ล็อกอิน | หน้า Portal เดิม: ขออนุมัติด้วยมือ ดูประวัติ**ของตัวเอง**และเช็คสถานะ |
+
+- รหัสอ้างอิง `ref` รูปแบบ `JF-<epoch ms>-<hex 8 ตัว>` ใช้เป็น `ExternalRefID` ของ CAS และเป็น primary key ใน D1
+- D1 ตาราง `approval_requests` (PK `external_ref_id`) เก็บผู้ขอ ผู้สมัคร คอร์ส ประเภท หัวข้อ/ข้อความ หัวหน้ากอง สถานะ (`PENDING`/`APPROVE`/`REJECT`) ขั้นอนุมัติ เวลา (UTC) และบันทึกเฉพาะเมื่อ CAS รับคำขอสำเร็จ
+- ชื่อ/คอร์ส/ประเภทที่ส่งผ่าน URL ถูกตัดความยาวที่ 50 / 80 / 50 ตัวอักษร (ให้ลิงก์ล็อกอินและคุกกี้ `oauth_next` ไม่เกินขีดจำกัด)
+- `oauth_next` (คุกกี้ส่งต่อหลังล็อกอิน) รับเฉพาะ `/` และ `/submit?...` ตามรูปแบบที่กำหนด กัน open redirect
+
+**ตัวแปรของ Portal (Cloudflare → Settings → Variables and Secrets):**
+
+| ตัวแปร | ชนิด | หมายเหตุ |
+|---|---|---|
+| `OAUTH_BASE_URI`, `OAUTH_CLIENT_ID`, `OAUTH_REDIRECT_URI`, `APP_URL`, `MSG_APP_NAME`, `JOTFORM_FORM_ID`, `JOTFORM_API_BASE` | Variable | อยู่ใน `wrangler.toml` |
+| `THANKYOU_URL` | Variable | `https://comtrain-webcertificate.onrender.com/thankyou.html` (ใน `wrangler.toml`) |
+| `OAUTH_CLIENT_SECRET`, `SESSION_SECRET`, `JOTFORM_API_KEY` | Secret | ตั้งผ่าน Dashboard |
+| `ADMIN_API_KEY` | Secret | สุ่มยาว ≥ 16 ตัวอักษร **ต้องตรงกับ `PORTAL_ADMIN_API_KEY` บน Render** |
+| `DB` | D1 binding | `dkc-portal-db` (ระบุ `database_id` จริงใน `wrangler.toml`) |
+
+### ฝั่งเว็บใบประกาศ
+- **หน้า Thank you** (`thankyou.html`) — ดูหัวข้อไฟล์ด้านบน
+- **แท็บ "คำขออนุมัติ"** — `admin.js (fetchApprovals)` → `backend/admin_api.php?action=list_approval_requests` → `PortalClient.php` → Portal `GET /api/admin/requests` คอลัมน์: วันที่ขอ, ผู้สมัคร, คอร์ส, ประเภท, ผู้ขอ (AD), หัวหน้ากอง, สถานะ, อัปเดตล่าสุด
+- ข้อความ error ที่อาจเห็นในแท็บ:
+
+| ข้อความ | สาเหตุ |
+|---|---|
+| ปฏิเสธคีย์ (ตรวจ `PORTAL_ADMIN_API_KEY`...) | `PORTAL_ADMIN_API_KEY` บน Render ไม่ตรงกับ `ADMIN_API_KEY` ใน Cloudflare |
+| ยังไม่ได้ตั้งค่า `PORTAL_BASE_URL` / `PORTAL_ADMIN_API_KEY` | ยังไม่ได้ใส่ตัวแปรบน Render หรือ deploy ยังไม่เสร็จ |
+| Portal ยังไม่ได้ตั้งค่า `ADMIN_API_KEY` | ยังไม่ได้ตั้ง secret ใน Cloudflare (หรือสั้นกว่า 16 ตัวอักษร) |
+| เชื่อมต่อ Portal ไม่ได้ / ตอบกลับผิดปกติ | Portal ล่ม หรือ build ล้มเหลว |
+
+### รหัสผิดพลาดบนหน้า Thank you (`e`)
+| รหัส | ความหมาย |
+|---|---|
+| `missing` | ชื่อ/คอร์ส/ประเภทไม่ครบ |
+| `cas` | CAS ไม่รับคำขอ (เช่น หาหัวหน้ากองไม่พบ) — รายละเอียดดูใน Cloudflare Logs |
+| `upstream` | CAS ไม่ตอบ/ตอบผิดรูปแบบ |
+| `dup` | `ref` นี้ถูกใช้โดยผู้ใช้คนอื่นแล้ว |
 
 ---
 
@@ -480,6 +617,8 @@ Endpoint สำหรับหน้า "เปิดรับสมัคร" (
 
 บน Render ตั้งค่าได้ที่ Dashboard → service → Environment tab
 
+> `PORTAL_ADMIN_API_KEY` ต้องมีค่าเดียวกับ `ADMIN_API_KEY` ใน Cloudflare (Secret) — ถ้าเปลี่ยนที่หนึ่ง ต้องเปลี่ยนอีกที่ให้ตรงกันเสมอ
+
 ---
 
 ## ข้อจำกัดและวิธีแก้ที่ใช้อยู่
@@ -489,6 +628,15 @@ Endpoint สำหรับหน้า "เปิดรับสมัคร" (
 
 ### SSL Certificate บนเครื่อง Windows
 PHP บน Windows อาจไม่มี SSL certificate bundle ทำให้ `curl` ต่อ Airtable API ไม่ได้ **วิธีแก้:** ดาวน์โหลด `cacert.pem` จาก [curl.se/ca/cacert.pem](https://curl.se/ca/cacert.pem) แล้วตั้งค่าใน `php.ini` (ดูรายละเอียดที่ขั้นตอน Local Setup ข้อ 5)
+
+### ข้อจำกัดของระบบขออนุมัติ
+- **ไม่มี Submission ID ใน JotForm redirect** รหัสอ้างอิงจึงสร้างฝั่ง Portal (`JF-<เวลา>-<hex>`) การกดส่งฟอร์มซ้ำ 2 ครั้งจึงเป็นคำขอแยกกัน 2 รายการ และคำขอไม่ผูกกับแถวผู้เรียนใน Neon โดยตรง (เทียบด้วยชื่อ/คอร์สเท่านั้น)
+- **ชื่อ/คอร์ส/ประเภทปรากฏใน URL** ของหน้า Thank you และ Portal (ลิงก์ที่ผู้สมัครแชร์จะเห็นชื่อ)
+- **การแยกประเภททำฝั่ง browser** (ใน `thankyou.html`) ผู้ที่แก้ลิงก์เองอาจข้ามการขออนุมัติได้ ยอมรับได้เพราะการอนุมัติเป็นเพียงการติดตามสถานะ
+- ผู้ที่เริ่มสมัครแล้วปิดหน้าก่อนล็อกอิน/ส่งคำขอ จะมีข้อมูลใน Neon แต่ไม่มีคำขอในแท็บ (ยังไม่มีการเทียบรายชื่อที่ขาดคำขอ)
+- ถ้าผู้ใช้กด "ไม่อนุญาต" ที่หน้าล็อกอิน DKC จะค้างที่หน้าของ DKC (ไม่กลับมาหน้า Thank you)
+- `approval_result.php` เป็นสาธารณะและยังไม่มี rate limit (ตอบแค่สถานะ + ชื่อหัวหน้ากอง และรหัสอ้างอิงเดายาก)
+- คีย์ `ADMIN_API_KEY` ที่เคยปรากฏในบทสนทนา/เอกสารควรเปลี่ยนใหม่ (ทั้ง Cloudflare และ Render) ก่อนใช้งานจริง
 
 ### Webhook ตกหล่นเมื่อคอร์สยังไม่มีในระบบ
 เพราะแอดมินไปเพิ่ม/แก้ dropdown ที่หน้า JotForm โดยตรง โดยไม่ผ่านเว็บนี้ก่อน ผู้สมัครที่เลือกคอร์สใหม่ (ที่ยังไม่มีในตาราง `courses`) จะเข้า Airtable ปกติ แต่ไม่เข้า Neon **วิธีแก้ที่ใช้อยู่:** เช็ค Render Logs หรือ JotForm webhook log เป็นระยะ แล้วใช้เมนู "นำเข้าข้อมูลจาก Airtable" สร้างคอร์สที่ตกหล่น + นำเข้าย้อนหลัง
@@ -500,6 +648,7 @@ PHP บน Windows อาจไม่มี SSL certificate bundle ทำให�
 | ปัญหา | สาเหตุ | วิธีแก้ |
 |---|---|---|
 | หน้า Airtable preview แสดงแค่คอร์สละ 1 คน | field ที่ใช้ group คือ "ชื่อโปรแกรม" ซึ่งส่วนใหญ่ว่าง — field จริงที่มีข้อมูลครบคือ "โปรแกรมที่สมัคร" (Single select) | แก้ `AIRTABLE_COURSE_FIELD` ใน `admin_api.php` จาก `ชื่อโปรแกรม` เป็น `โปรแกรมที่สมัคร` |
+| แท็บ "คำขออนุมัติ" ขึ้น "ปฏิเสธคีย์" / "ยังไม่ได้ตั้งค่า..." | `PORTAL_ADMIN_API_KEY` / `PORTAL_BASE_URL` บน Render ไม่ตรงหรือยังไม่ได้ตั้ง | ดูตารางข้อความ error ในหัวข้อระบบขออนุมัติ แล้วตั้งค่าให้ตรงกับ Cloudflare |
 | `Cannot read properties of undefined (reading 'filter')` | browser โหลด `admin.js` เวอร์ชันเก่าจาก cache | กด `Ctrl+Shift+R` หรือเพิ่ม `?v=N` ต่อท้ายชื่อไฟล์ JS ใน `index.html` |
 | `Maximum execution time exceeded` บนเครื่อง local | query database ทีละ record (829 ครั้ง) ช้าเกิน 30 วินาที | แก้ให้ดึง courses ทั้งหมดมาครั้งเดียวแล้ว match ใน PHP + เพิ่ม `max_execution_time` ใน `php.ini` |
 | `SSL certificate verify failed` บนเครื่อง Windows | PHP ไม่มี CA bundle | ดาวน์โหลด `cacert.pem` และตั้งค่า `curl.cainfo` / `openssl.cafile` ใน `php.ini` |
@@ -507,6 +656,8 @@ PHP บน Windows อาจไม่มี SSL certificate bundle ทำให�
 | `airtable_preview` ช้ามากบนเครื่อง local | เรียก `findByShortNameOrLongKey()` ทุก record = query หลายร้อยครั้ง | เปลี่ยนเป็นดึง courses ทั้งหมดมาครั้งเดียว index เป็น PHP array map แล้วค้นหาใน memory แทน |
 | Sync ไป JotForm แล้ว dropdown ยังโชว์ชื่อย่อ ไม่ใช่ชื่อยาวตามที่ต้องการ | `listActiveShortNames()` และหน้า admin ดึง/แสดง `short_name` อยู่ | เปลี่ยนเป็น `listActiveLongKeys()` (query คอลัมน์ `long_key`) ทั้งใน `CourseRepository`, `active_courses.php`, และตาราง "เปิดรับสมัคร" ใน `admin.js` |
 | Webhook ตอบ `500 Internal Server Error` ทุกครั้งที่มีคน submit ฟอร์มบริษัท (`trim(): Argument #1 ($string) must be of type string, array given`) | field "เบอร์ภายใน" (id 38) เป็น type `control_phone` เหมือน field เบอร์มือถือ ส่งมาเป็น array ไม่ใช่ string ธรรมดา แต่โค้ดเขียน `trim($raw['q38_input38'])` ตรง ๆ | แก้เป็น `trim($raw['q38_input38']['full'] ?? '')` ให้ดึงค่าจาก array เหมือนที่ทำกับเบอร์มือถือ |
+| Cloudflare build ล้มเหลวที่ขั้น Deploying (build/install ผ่านปกติ) หลังวางไฟล์ `wrangler.toml` ใหม่ | ไฟล์ที่วางทับมี `database_id` เป็นค่าตัวอย่าง (`REPLACE_WITH_YOUR_D1_DATABASE_ID`) ทำให้ค่าจริงของ D1 หาย | แก้ `database_id` กลับเป็นค่าจริงของ D1 (`dkc-portal-db`) แล้ว push ใหม่ — **ก่อนวางทับ `wrangler.toml` ให้เช็ก `database_id` เสมอ** |
+| ตั้ง Conditions "Change Thank You page" ใน JotForm ไว้ แล้วผู้สมัครไม่เห็นหน้า Thank you ของเว็บ หรือผู้นำบุญถูกส่งไป Portal | เงื่อนไขเดิมยังเหลืออยู่ และทับค่า Thank You Page หลัก | ลบ Conditions ทั้งหมดของ Thank You (ใช้เฉพาะ Thank You Page หลัก) เพราะ `thankyou.html` แยกประเภทเองแล้ว |
 | ย้ายไปใช้ JotForm ฟอร์มบริษัท (231301336713444) แล้ว webhook หาคอร์สไม่เจอทั้งที่มีคอร์สนั้นในระบบแล้ว | field id ของฟอร์มบริษัทไม่เหมือนฟอร์มทดลองเดิม (`q93_input115` เดิม → ที่จริงคือ `q93_input93` ในฟอร์มใหม่) รวมถึงฟิลด์อื่น ๆ ทั้งหมดเปลี่ยน id ตามฟอร์ม | ดึง field id จริงผ่าน `GET https://api.jotform.com/form/{formId}/questions?apiKey=...` แล้ว map ใหม่ทั้งหมดใน `jotform_webhook.php` ตามฟอร์มที่ใช้งานจริง |
 
 ---
@@ -523,18 +674,20 @@ PHP บน Windows อาจไม่มี SSL certificate bundle ทำให�
 
 ส่วนปัญหาเว็บ "หลับ" ของ hosting แผนฟรีก็แก้ด้วย UptimeRobot ทำให้ใช้งานได้ต่อเนื่องโดยไม่ต้องเสียค่าใช้จ่ายเพิ่ม
 
-## แท็บ "คำขออนุมัติ" (Admin)
+ต่อมาเพิ่ม **ระบบขออนุมัติจากหัวหน้ากอง (CAS)** เพื่อให้ผู้สมัครที่มีบัญชี AD (ทุกประเภทสมาชิกยกเว้น "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ") ขออนุมัติจากหัวหน้ากองได้ทันทีหลังกรอกฟอร์ม โดยสร้าง **DKC Portal** (Cloudflare Worker + D1) ทำหน้าที่ล็อกอิน DKC ส่งคำขอ และเก็บประวัติสถานะ พัฒนาเป็นขั้นตอน: (1) Portal + D1 + หน้าขออนุมัติที่เติมข้อมูลให้ล่วงหน้า (2) แท็บ "คำขออนุมัติ" บนเว็บใบประกาศสำหรับแอดมิน (3) ปรับเป็นส่งอัตโนมัติ — JotForm ใช้ Thank You Page อย่างเดียวชี้มาที่ `thankyou.html` ซึ่งแยกประเภทและส่งต่อไป Portal `/submit` แล้วกลับมาแสดงผลส่งถึงหัวหน้ากอง การทดสอบครบวงจรทำกับฟอร์มทดสอบ (261701468554460) และคอร์สทดสอบ `TEST-ระบบขออนุมัติ` ผ่านแล้ว รวมถึงการที่หัวหน้ากองกดอนุมัติจริงแล้วสถานะอัปเดตถึงแท็บ
 
-แสดงคำขออนุมัติ CAS ของทุกคนที่ส่งจาก DKC OAuth Portal (ติดตามสถานะอย่างเดียว ไม่กระทบใบประกาศ)
+---
 
-`admin.js (fetchApprovals)` → `backend/admin_api.php?action=list_approval_requests` → `PortalClient.php` → Portal `GET /api/admin/requests` (Bearer `PORTAL_ADMIN_API_KEY`) → Cloudflare D1
+## สถานะปัจจุบันและงานที่เหลือ
 
-รองรับ `page`, `per_page`, `status` (approved|rejected|pending), `q` คีย์อยู่ฝั่ง server เท่านั้น
-
-
-## หน้า Thank you และการส่งคำขออนุมัติอัตโนมัติ
-
-- JotForm ประเภท "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" → `thankyou.html` โดยตรง (ไม่มี `ref`)
-- ประเภทอื่น → Portal `/submit?name=&course=&type=` (ล็อกอิน DKC → ส่ง CAS อัตโนมัติ → บันทึก D1) → `thankyou.html?ref=JF-...` (สำเร็จ) หรือ `?ref=...&e=<code>&retry=/submit?...` (ล้มเหลว)
-- `thankyou.html` เรียก `backend/approval_result.php?ref=` (สาธารณะ, ตอบแค่สถานะ + ชื่อหัวหน้ากอง) → `PortalClient::getRequest` → Portal `GET /api/admin/request?ref=`
-- รหัสผิดพลาด `e`: `missing`, `cas`, `upstream`, `dup`
+| รายการ | สถานะ |
+|---|---|
+| DKC Portal (`/submit`, D1, callback, endpoint สำหรับแอดมิน) | ✅ ขึ้นระบบแล้ว |
+| แท็บ "คำขออนุมัติ" บนเว็บใบประกาศ | ✅ ใช้งานได้ |
+| หน้า `thankyou.html` + `approval_result.php` | ✅ ใช้งานได้ |
+| ทดสอบกับฟอร์มทดสอบ: ประเภทต้องขออนุมัติ → ส่งอัตโนมัติ + หัวหน้ากองอนุมัติจริง | ✅ ผ่าน |
+| ทดสอบประเภท "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" บนฟอร์มทดสอบ (ไม่ขึ้นคำขอ) | ⏳ รอยืนยัน |
+| ตั้งค่า Thank You Page ของ **ฟอร์มบริษัท `231301336713444`** ตามหัวข้อ JotForm (ตรวจ Unique Name โดยเฉพาะ `input93` ของคอร์ส และลบ Conditions Thank You ถ้ามี) | ⏳ ยังไม่ได้ทำ |
+| ลบข้อมูลทดสอบ: คอร์ส `TEST-ระบบขออนุมัติ` (ลบผู้เรียนที่ผูกอยู่ทั้งหมดตาม cascade), Webhook ในฟอร์มทดสอบ, แถวทดสอบใน D1 `approval_requests` | ⏳ ยังไม่ได้ทำ |
+| เปลี่ยน `ADMIN_API_KEY` / `PORTAL_ADMIN_API_KEY` ใหม่ (ค่าเดิมเคยปรากฏในบทสนทนา) | ⏳ แนะนำให้ทำก่อนใช้งานจริง |
+| ตัวเลือกเสริม: แสดงเวลาสร้างคำขอในหน้า Portal เป็นเวลาไทย / ทำรายงานผู้สมัครที่ยังไม่ส่งคำขอ | 💡 ยังไม่ได้ทำ |
