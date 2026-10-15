@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ขอบคุณที่สมัครอบรม — ศูนย์อบรมคอมพิวเตอร์ วัดพระธรรมกาย</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f4f8ff;
+        --card: #ffffff;
+        --text: #1e293b;
+        --text2: #475569;
+        --border: #e2eaf4;
+        --blue: #2563eb;
+        --green: #10b981;
+        --red: #ef4444;
+        --amber: #f59e0b;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Prompt", sans-serif;
+      }
+      .card {
+        width: 100%;
+        max-width: 460px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 2rem 1.5rem;
+        text-align: center;
+        box-shadow: 0 8px 24px rgba(30, 58, 95, 0.08);
+      }
+      .logo { width: 56px; height: 56px; object-fit: contain; margin-bottom: 8px; }
+      .org { font-size: 13px; color: var(--text2); margin-bottom: 18px; }
+      .icon {
+        width: 64px; height: 64px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 14px; font-size: 32px; color: #fff;
+      }
+      .icon.ok { background: var(--green); }
+      .icon.warn { background: var(--amber); }
+      .icon.err { background: var(--red); }
+      .icon.load { background: var(--border); color: var(--text2); }
+      h1 { font-size: 1.25rem; margin: 0 0 8px; font-weight: 600; }
+      p { margin: 6px 0; color: var(--text2); font-size: 14px; line-height: 1.6; }
+      .approver {
+        margin: 14px 0 4px; padding: 10px 14px; border-radius: 10px;
+        background: #eff6ff; color: var(--text); font-size: 14px;
+      }
+      .btn {
+        display: inline-block; margin-top: 16px; padding: 10px 22px;
+        border-radius: 10px; background: var(--blue); color: #fff;
+        text-decoration: none; font-size: 14px; font-family: inherit;
+      }
+      .ref { margin-top: 18px; font-size: 11px; color: #94a3b8; word-break: break-all; }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <img class="logo" src="assets/images/logo.png" alt="CTC" />
+      <div class="org">ศูนย์อบรมคอมพิวเตอร์ วัดพระธรรมกาย</div>
+      <div class="icon load" id="icon">…</div>
+      <h1 id="title">กำลังตรวจสอบ...</h1>
+      <p id="msg"></p>
+      <div id="extra"></div>
+      <div class="ref" id="ref"></div>
+    </main>
+
+    <script>
+      (function () {
+        var q = new URLSearchParams(location.search);
+        var ref = q.get("ref") || "";
+        var err = q.get("e") || "";
+        var retry = q.get("retry") || "";
+
+        var ERR_TEXT = {
+          missing: "ข้อมูลที่ส่งมาไม่ครบ กรุณากรอกแบบฟอร์มสมัครใหม่อีกครั้ง",
+          cas: "ระบบอนุมัติไม่รับคำขอ อาจหาหัวหน้ากองของท่านไม่พบ กรุณาติดต่อเจ้าหน้าที่",
+          upstream: "ระบบอนุมัติไม่ตอบสนองในขณะนี้ กรุณาลองใหม่อีกครั้ง",
+          dup: "รหัสอ้างอิงนี้ถูกใช้งานแล้ว กรุณากรอกแบบฟอร์มสมัครใหม่อีกครั้ง",
+        };
+
+        function $(id) { return document.getElementById(id); }
+        function show(kind, icon, title, msg) {
+          var ic = $("icon");
+          ic.className = "icon " + kind;
+          ic.textContent = icon;
+          $("title").textContent = title;
+          $("msg").textContent = msg || "";
+        }
+        function addText(cls, text) {
+          var d = document.createElement("div");
+          d.className = cls;
+          d.textContent = text;
+          $("extra").appendChild(d);
+        }
+        function addLink(href, text) {
+          var a = document.createElement("a");
+          a.className = "btn";
+          a.href = href;
+          a.textContent = text;
+          $("extra").appendChild(a);
+        }
+        if (ref) $("ref").textContent = "รหัสอ้างอิง: " + ref;
+
+        // ไม่มีรหัสและไม่มี error = ประเภทที่ไม่ต้องขออนุมัติ
+        if (!ref && !err) {
+          show("ok", "✓", "ขอบคุณที่สมัครอบรม", "เราได้รับข้อมูลการสมัครของท่านเรียบร้อยแล้ว");
+          return;
+        }
+
+        function failView(portalUrl) {
+          show("err", "!", "ส่งคำขออนุมัติไม่สำเร็จ", ERR_TEXT[err] || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+          // ปุ่มลองใหม่: ต้องเป็นเส้นทาง /submit? บน Portal เท่านั้น
+          if (portalUrl && /^\/submit\?[^\s\\]*$/.test(retry) && retry.indexOf("//") === -1) {
+            addLink(portalUrl + retry, "ลองส่งใหม่");
+          }
+        }
+
+        if (!/^JF-\d{10,14}-[a-f0-9]{8}$/.test(ref)) {
+          failView("");
+          return;
+        }
+
+        fetch("backend/approval_result.php?ref=" + encodeURIComponent(ref))
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (err) { failView(d && d.portal_url); return; }
+            if (!d || !d.ok) {
+              show("warn", "!", "ยังตรวจสอบผลไม่ได้", "กรุณารีเฟรชหน้านี้อีกครั้งในภายหลัง");
+              return;
+            }
+            if (!d.found) {
+              show("warn", "!", "ไม่พบคำขออนุมัติ", "กรุณาติดต่อเจ้าหน้าที่พร้อมแจ้งรหัสอ้างอิงด้านล่าง");
+              return;
+            }
+            var who = d.approver_name || "หัวหน้ากอง";
+            if (d.status === "approved") {
+              show("ok", "✓", "หัวหน้ากองอนุมัติแล้ว", "คำขออนุมัติของท่านได้รับการอนุมัติเรียบร้อย");
+            } else if (d.status === "rejected") {
+              show("err", "!", "หัวหน้ากองไม่อนุมัติ", "กรุณาติดต่อเจ้าหน้าที่หากต้องการสอบถามเพิ่มเติม");
+            } else {
+              show("ok", "✓", "ส่งคำขออนุมัติถึงหัวหน้ากองแล้ว", "ระบบได้ส่งคำขอของท่านไปยังหัวหน้ากองเรียบร้อย กรุณารอการพิจารณา");
+            }
+            addText("approver", "หัวหน้ากองผู้พิจารณา: " + who);
+          })
+          .catch(function () {
+            if (err) failView("");
+            else show("warn", "!", "ยังตรวจสอบผลไม่ได้", "กรุณารีเฟรชหน้านี้อีกครั้งในภายหลัง");
+          });
+      })();
+    </script>
+  </body>
+</html>

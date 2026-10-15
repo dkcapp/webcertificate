@@ -530,3 +530,11 @@ PHP บน Windows อาจไม่มี SSL certificate bundle ทำให�
 `admin.js (fetchApprovals)` → `backend/admin_api.php?action=list_approval_requests` → `PortalClient.php` → Portal `GET /api/admin/requests` (Bearer `PORTAL_ADMIN_API_KEY`) → Cloudflare D1
 
 รองรับ `page`, `per_page`, `status` (approved|rejected|pending), `q` คีย์อยู่ฝั่ง server เท่านั้น
+
+
+## หน้า Thank you และการส่งคำขออนุมัติอัตโนมัติ
+
+- JotForm ประเภท "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" → `thankyou.html` โดยตรง (ไม่มี `ref`)
+- ประเภทอื่น → Portal `/submit?name=&course=&type=` (ล็อกอิน DKC → ส่ง CAS อัตโนมัติ → บันทึก D1) → `thankyou.html?ref=JF-...` (สำเร็จ) หรือ `?ref=...&e=<code>&retry=/submit?...` (ล้มเหลว)
+- `thankyou.html` เรียก `backend/approval_result.php?ref=` (สาธารณะ, ตอบแค่สถานะ + ชื่อหัวหน้ากอง) → `PortalClient::getRequest` → Portal `GET /api/admin/request?ref=`
+- รหัสผิดพลาด `e`: `missing`, `cas`, `upstream`, `dup`

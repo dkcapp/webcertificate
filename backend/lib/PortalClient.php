@@ -25,6 +25,12 @@ class PortalClient
         return new self($base, $key);
     }
 
+    /** ผลคำขอเดี่ยวตามรหัสอ้างอิง (ใช้กับหน้า thank you) */
+    public function getRequest(string $ref): array
+    {
+        return $this->get('/api/admin/request?' . http_build_query(['ref' => $ref]));
+    }
+
     /** ดึงรายการคำขอ: page, per_page, status (approved|rejected|pending), q */
     public function listRequests(array $params): array
     {
@@ -34,7 +40,12 @@ class PortalClient
                 $query[$k] = $params[$k];
             }
         }
-        $url = $this->baseUrl . '/api/admin/requests' . ($query ? '?' . http_build_query($query) : '');
+        return $this->get('/api/admin/requests' . ($query ? '?' . http_build_query($query) : ''));
+    }
+
+    private function get(string $pathAndQuery): array
+    {
+        $url = $this->baseUrl . $pathAndQuery;
 
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
