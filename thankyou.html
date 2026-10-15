@@ -80,6 +80,7 @@
 
     <script>
       (function () {
+        var PORTAL_URL = "https://dkc-oauth-portal.dkcapp.workers.dev";
         var q = new URLSearchParams(location.search);
         var ref = q.get("ref") || "";
         var err = q.get("e") || "";
@@ -117,9 +118,23 @@
 
         // ไม่มีรหัสและไม่มี error = ประเภทที่ไม่ต้องขออนุมัติ
         if (!ref && !err) {
-          // แสดงด้วย textContent เท่านั้น (ไม่แปลงเป็น HTML) และจำกัดความยาว
-          var who = (q.get("name") || "").replace(/\s+/g, " ").trim().slice(0, 80);
-          var course = (q.get("course") || "").replace(/\s+/g, " ").trim().slice(0, 120);
+          var clean = function (v, n) {
+            return (v || "").replace(/\s+/g, " ").trim().slice(0, n);
+          };
+          var who = clean(q.get("name"), 50);
+          var course = clean(q.get("course"), 80);
+          var mtype = clean(q.get("type"), 50);
+
+          // ประเภทอื่นที่ไม่ใช่ "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" ต้องขออนุมัติ → ส่งต่อไป Portal
+          // (replace: ไม่เก็บหน้านี้ในประวัติ กดย้อนกลับแล้วจะไม่ส่งคำขอซ้ำ)
+          if (mtype && mtype.indexOf("ผู้นำบุญ") !== 0 && who && course) {
+            show("load", "…", "กำลังส่งคำขออนุมัติถึงหัวหน้ากอง", "กรุณารอสักครู่ ระบบอาจให้ล็อกอินด้วยบัญชี DKC ก่อน");
+            var qs = new URLSearchParams({ name: who, course: course, type: mtype });
+            location.replace(PORTAL_URL + "/submit?" + qs.toString());
+            return;
+          }
+
+          // ไม่ต้องขออนุมัติ: แสดงด้วย textContent เท่านั้น
           show(
             "ok",
             "✓",
