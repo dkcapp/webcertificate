@@ -80,17 +80,17 @@
 
     <script>
       (function () {
-        var PORTAL_URL = "https://dkc-oauth-portal.dkcapp.workers.dev";
         var q = new URLSearchParams(location.search);
         var ref = q.get("ref") || "";
         var err = q.get("e") || "";
-        var retry = q.get("retry") || "";
 
         var ERR_TEXT = {
           missing: "ข้อมูลที่ส่งมาไม่ครบ กรุณากรอกแบบฟอร์มสมัครใหม่อีกครั้ง",
           cas: "ระบบอนุมัติไม่รับคำขอ อาจหาหัวหน้ากองของท่านไม่พบ กรุณาติดต่อเจ้าหน้าที่",
           upstream: "ระบบอนุมัติไม่ตอบสนองในขณะนี้ กรุณาลองใหม่อีกครั้ง",
           dup: "รหัสอ้างอิงนี้ถูกใช้งานแล้ว กรุณากรอกแบบฟอร์มสมัครใหม่อีกครั้ง",
+          login: "ล็อกอินบัญชี DKC ไม่สำเร็จ หรือท่านไม่อนุญาตการเข้าถึง กรุณาลองใหม่อีกครั้ง",
+          db: "ส่งคำขอถึงหัวหน้ากองแล้ว แต่บันทึกในระบบไม่สำเร็จ กรุณาติดต่อเจ้าหน้าที่พร้อมแจ้งรหัสอ้างอิง",
         };
 
         function $(id) { return document.getElementById(id); }
@@ -125,12 +125,12 @@
           var course = clean(q.get("course"), 80);
           var mtype = clean(q.get("type"), 50);
 
-          // ประเภทอื่นที่ไม่ใช่ "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" ต้องขออนุมัติ → ส่งต่อไป Portal
+          // ประเภทอื่นที่ไม่ใช่ "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" ต้องขออนุมัติ → ส่งต่อไปล็อกอิน DKC และส่งคำขอ (อยู่ในเว็บนี้)
           // (replace: ไม่เก็บหน้านี้ในประวัติ กดย้อนกลับแล้วจะไม่ส่งคำขอซ้ำ)
           if (mtype && mtype.indexOf("ผู้นำบุญ") !== 0 && who && course) {
             show("load", "…", "กำลังส่งคำขออนุมัติถึงหัวหน้ากอง", "กรุณารอสักครู่ ระบบอาจให้ล็อกอินด้วยบัญชี DKC ก่อน");
             var qs = new URLSearchParams({ name: who, course: course, type: mtype });
-            location.replace(PORTAL_URL + "/submit?" + qs.toString());
+            location.replace("backend/approval_start.php?" + qs.toString());
             return;
           }
 
@@ -146,23 +146,23 @@
           return;
         }
 
-        function failView(portalUrl) {
+        function failView() {
           show("err", "!", "ส่งคำขออนุมัติไม่สำเร็จ", ERR_TEXT[err] || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
-          // ปุ่มลองใหม่: ต้องเป็นเส้นทาง /submit? บน Portal เท่านั้น
-          if (portalUrl && /^\/submit\?[^\s\\]*$/.test(retry) && retry.indexOf("//") === -1) {
-            addLink(portalUrl + retry, "ลองส่งใหม่");
+          // ปุ่มลองใหม่: ข้อมูลคำขอยังอยู่ใน session ฝั่ง server
+          if (err === "cas" || err === "upstream" || err === "login") {
+            addLink("backend/approval_submit.php", "ลองส่งใหม่");
           }
         }
 
         if (!/^JF-\d{10,14}-[a-f0-9]{8}$/.test(ref)) {
-          failView("");
+          failView();
           return;
         }
 
         fetch("backend/approval_result.php?ref=" + encodeURIComponent(ref))
           .then(function (r) { return r.json(); })
           .then(function (d) {
-            if (err) { failView(d && d.portal_url); return; }
+            if (err) { failView(); return; }
             if (!d || !d.ok) {
               show("warn", "!", "ยังตรวจสอบผลไม่ได้", "กรุณารีเฟรชหน้านี้อีกครั้งในภายหลัง");
               return;
@@ -182,7 +182,7 @@
             addText("approver", "หัวหน้ากองผู้พิจารณา: " + who);
           })
           .catch(function () {
-            if (err) failView("");
+            if (err) failView();
             else show("warn", "!", "ยังตรวจสอบผลไม่ได้", "กรุณารีเฟรชหน้านี้อีกครั้งในภายหลัง");
           });
       })();
