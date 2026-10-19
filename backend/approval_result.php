@@ -21,11 +21,16 @@ if (!preg_match('/^JF-\d{10,14}-[a-f0-9]{8}$/', $ref)) {
 
 try {
     $row = (new ApprovalRepository(getDB()))->find($ref);
+    $cas = $row ? (json_decode((string) ($row['cas_data'] ?? ''), true) ?: []) : [];
     echo json_encode([
         'ok'            => true,
         'found'         => (bool) $row,
         'status'        => $row ? ApprovalRepository::statusKind($row['status']) : null,
         'approver_name' => $row['approver_name'] ?? null,
+        // อีเมลที่ CAS ส่งมาถูกปิดบางส่วนมาแล้ว (เช่น so****72@gmail.com) ส่งต่อตามนั้น
+        'approver_email'    => $cas['HeadShowEmail'] ?? null,
+        'approver_position' => $cas['Position'] ?? null,
+        'approver_org'      => $cas['Organization'] ?? null,
     ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
     send_error_response($e, 'ไม่สามารถตรวจสอบผลได้ในขณะนี้', 502);

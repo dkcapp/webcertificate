@@ -43,7 +43,7 @@ try {
     }
 
     $subject = mb_substr("ขออนุมัติสมัครอบรม: $course", 0, 200, 'UTF-8');
-    $message = mb_substr("ขออนุมัติให้ $name สมัครเรียน $course ในฐานะ $type", 0, 2000, 'UTF-8');
+    $message = mb_substr("ขออนุมัติให้ $name เข้าอบรมหลักสูตร $course", 0, 2000, 'UTF-8');
 
     try {
         $cas = CasClient::fromEnv();

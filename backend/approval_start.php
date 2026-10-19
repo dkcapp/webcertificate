@@ -19,6 +19,7 @@ if ($name === '' || $course === '' || $type === '') {
 // รหัสอ้างอิงเดายาก: JF-<epoch ms>-<hex 8 ตัว> (ใช้เป็น ExternalRefID ของ CAS และกันส่งซ้ำ)
 $ref = 'JF-' . (string) round(microtime(true) * 1000) . '-' . bin2hex(random_bytes(4));
 
+$_SESSION['applicant'] = ['name' => $name, 'course' => $course, 'type' => $type];
 $_SESSION['pending'] = [
     'ref'    => $ref,
     'name'   => $name,

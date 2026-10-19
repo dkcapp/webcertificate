@@ -34,7 +34,7 @@
       }
       .card {
         width: 100%;
-        max-width: 460px;
+        max-width: 480px;
         background: var(--card);
         border: 1px solid var(--border);
         border-radius: 16px;
@@ -47,23 +47,36 @@
       .icon {
         width: 64px; height: 64px; border-radius: 50%;
         display: flex; align-items: center; justify-content: center;
-        margin: 0 auto 14px; font-size: 32px; color: #fff;
+        margin: 0 auto 14px; font-size: 32px; color: #fff; background: var(--green);
       }
-      .icon.ok { background: var(--green); }
-      .icon.warn { background: var(--amber); }
-      .icon.err { background: var(--red); }
-      .icon.load { background: var(--border); color: var(--text2); }
-      h1 { font-size: 1.25rem; margin: 0 0 8px; font-weight: 600; }
+      h1 { font-size: 2.4rem; line-height: 1.2; margin: 0 0 4px; font-weight: 600; }
+      .who { font-size: 1.2rem; font-weight: 500; margin: 0 0 10px; word-break: break-word; }
       p { margin: 6px 0; color: var(--text2); font-size: 14px; line-height: 1.6; }
-      .approver {
-        margin: 14px 0 4px; padding: 10px 14px; border-radius: 10px;
-        background: #eff6ff; color: var(--text); font-size: 14px;
+      .course { font-weight: 500; color: var(--text); }
+      hr { border: 0; border-top: 1px solid var(--border); margin: 22px 0; }
+      .qr-title { font-size: 14px; font-weight: 500; margin-bottom: 10px; }
+      .qr-box {
+        width: 180px; height: 180px; margin: 0 auto;
+        background: #d1d5db; border-radius: 12px; overflow: hidden;
+        display: flex; align-items: center; justify-content: center;
+        color: #6b7280; font-size: 13px; line-height: 1.5;
       }
+      .qr-box img { width: 100%; height: 100%; object-fit: contain; background: #fff; }
+      .box { margin-top: 4px; padding: 16px; border-radius: 12px; background: #f8fafc; border: 1px solid var(--border); text-align: center; }
+      .box h2 { font-size: 1rem; margin: 0 0 6px; font-weight: 600; }
+      .box.ok { background: #ecfdf5; border-color: #a7f3d0; }
+      .box.err { background: #fef2f2; border-color: #fecaca; }
+      .box.warn { background: #fffbeb; border-color: #fde68a; }
+      .info { margin-top: 10px; text-align: left; font-size: 14px; background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+      .info div { margin: 3px 0; word-break: break-word; }
+      .info b { font-weight: 500; color: var(--text2); }
+      .actions { display: flex; gap: 10px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
       .btn {
-        display: inline-block; margin-top: 16px; padding: 10px 22px;
-        border-radius: 10px; background: var(--blue); color: #fff;
-        text-decoration: none; font-size: 14px; font-family: inherit;
+        display: inline-block; padding: 10px 26px; border-radius: 10px;
+        background: var(--blue); color: #fff; border: 1px solid var(--blue);
+        text-decoration: none; font-size: 14px; font-family: inherit; cursor: pointer;
       }
+      .btn.ghost { background: #fff; color: var(--text2); border-color: #cbd5e1; }
       .ref { margin-top: 18px; font-size: 11px; color: #94a3b8; word-break: break-all; }
     </style>
   </head>
@@ -71,10 +84,19 @@
     <main class="card">
       <img class="logo" src="assets/images/logo.png" alt="CTC" />
       <div class="org">ศูนย์อบรมคอมพิวเตอร์ วัดพระธรรมกาย</div>
-      <div class="icon load" id="icon">…</div>
-      <h1 id="title">กำลังตรวจสอบ...</h1>
-      <p id="msg"></p>
-      <div id="extra"></div>
+      <div class="icon">✓</div>
+      <h1>ขอบคุณ</h1>
+      <div class="who" id="who"></div>
+      <p id="msg">เราได้รับข้อมูลการสมัครของท่านเรียบร้อยแล้ว</p>
+
+      <hr />
+      <div class="qr-title">สแกน QR Code เพื่อเข้ากลุ่มไลน์</div>
+      <div class="qr-box" id="qrBox"><span>QR Code<br />กลุ่มไลน์</span></div>
+
+      <div id="approval" hidden>
+        <hr />
+        <div class="box" id="apBox"></div>
+      </div>
       <div class="ref" id="ref"></div>
     </main>
 
@@ -83,6 +105,10 @@
         var q = new URLSearchParams(location.search);
         var ref = q.get("ref") || "";
         var err = q.get("e") || "";
+        var clean = function (v, n) { return (v || "").replace(/\s+/g, " ").trim().slice(0, n); };
+        var who = clean(q.get("name"), 100);
+        var course = clean(q.get("course"), 200);
+        var mtype = clean(q.get("type"), 100);
 
         var ERR_TEXT = {
           missing: "ข้อมูลที่ส่งมาไม่ครบ กรุณากรอกแบบฟอร์มสมัครใหม่อีกครั้ง",
@@ -94,97 +120,122 @@
         };
 
         function $(id) { return document.getElementById(id); }
-        function show(kind, icon, title, msg) {
-          var ic = $("icon");
-          ic.className = "icon " + kind;
-          ic.textContent = icon;
-          $("title").textContent = title;
-          $("msg").textContent = msg || "";
+        function el(tag, cls, text) {
+          var e = document.createElement(tag);
+          if (cls) e.className = cls;
+          if (text !== undefined) e.textContent = text;
+          return e;
         }
-        function addText(cls, text) {
-          var d = document.createElement("div");
-          d.className = cls;
-          d.textContent = text;
-          $("extra").appendChild(d);
-        }
-        function addLink(href, text) {
-          var a = document.createElement("a");
-          a.className = "btn";
+        function link(href, text, cls) {
+          var a = el("a", "btn" + (cls ? " " + cls : ""), text);
           a.href = href;
-          a.textContent = text;
-          $("extra").appendChild(a);
+          return a;
+        }
+        function box(kind, title, msg) {
+          $("approval").hidden = false;
+          var b = $("apBox");
+          b.className = "box" + (kind ? " " + kind : "");
+          b.textContent = "";
+          b.appendChild(el("h2", "", title));
+          if (msg) b.appendChild(el("p", "", msg));
+          return b;
+        }
+
+        // ทักทาย + หลักสูตร (textContent เท่านั้น)
+        if (who) $("who").textContent = "คุณ" + who;
+        if (course) {
+          var m = $("msg");
+          m.textContent = "เราได้รับข้อมูลการสมัครอบรมหลักสูตร ";
+          m.appendChild(el("span", "course", "“" + course + "”"));
+          m.appendChild(document.createTextNode(" ของท่านเรียบร้อยแล้ว"));
         }
         if (ref) $("ref").textContent = "รหัสอ้างอิง: " + ref;
 
-        // ไม่มีรหัสและไม่มี error = ประเภทที่ไม่ต้องขออนุมัติ
-        if (!ref && !err) {
-          var clean = function (v, n) {
-            return (v || "").replace(/\s+/g, " ").trim().slice(0, n);
-          };
-          var who = clean(q.get("name"), 50);
-          var course = clean(q.get("course"), 80);
-          var mtype = clean(q.get("type"), 50);
+        // รูป QR: ถ้ามีไฟล์ assets/images/line-qr.png จะแสดงแทนกรอบสีเทา
+        var img = new Image();
+        img.alt = "QR Code กลุ่มไลน์";
+        img.onload = function () { $("qrBox").textContent = ""; $("qrBox").appendChild(img); };
+        img.src = "assets/images/line-qr.png";
 
-          // ประเภทอื่นที่ไม่ใช่ "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" ต้องขออนุมัติ → ส่งต่อไปล็อกอิน DKC และส่งคำขอ (อยู่ในเว็บนี้)
-          // (replace: ไม่เก็บหน้านี้ในประวัติ กดย้อนกลับแล้วจะไม่ส่งคำขอซ้ำ)
-          if (mtype && mtype.indexOf("ผู้นำบุญ") !== 0 && who && course) {
-            show("load", "…", "กำลังส่งคำขออนุมัติถึงหัวหน้ากอง", "กรุณารอสักครู่ ระบบอาจให้ล็อกอินด้วยบัญชี DKC ก่อน");
-            var qs = new URLSearchParams({ name: who, course: course, type: mtype });
-            location.replace("backend/approval_start.php?" + qs.toString());
-            return;
-          }
+        var needsApproval = !!(mtype && mtype.indexOf("ผู้นำบุญ") !== 0 && who && course);
+        var startUrl = "backend/approval_start.php?" + new URLSearchParams({ name: who, course: course, type: mtype }).toString();
 
-          // ไม่ต้องขออนุมัติ: แสดงด้วย textContent เท่านั้น
-          show(
-            "ok",
-            "✓",
-            who ? "ขอบคุณ คุณ" + who : "ขอบคุณที่สมัครอบรม",
-            course
-              ? "เราได้รับข้อมูลการสมัครอบรมหลักสูตร “" + course + "” ของท่านเรียบร้อยแล้ว"
-              : "เราได้รับข้อมูลการสมัครของท่านเรียบร้อยแล้ว"
-          );
-          return;
+        function promptView() {
+          var b = box("", "ต้องการส่งคำขออนุมัติถึงหัวหน้ากองเลยไหม?",
+            "ระบบจะให้ล็อกอินด้วยบัญชี DKC แล้วส่งคำขอถึงหัวหน้ากองของท่านโดยอัตโนมัติ");
+          var a = el("div", "actions");
+          var ok = el("button", "btn", "ตกลง");
+          ok.type = "button";
+          ok.onclick = function () { location.href = startUrl; };
+          var no = el("button", "btn ghost", "ยกเลิก");
+          no.type = "button";
+          no.onclick = declinedView;
+          a.appendChild(ok); a.appendChild(no);
+          b.appendChild(a);
         }
-
-        function failView() {
-          show("err", "!", "ส่งคำขออนุมัติไม่สำเร็จ", ERR_TEXT[err] || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
-          // ปุ่มลองใหม่: ข้อมูลคำขอยังอยู่ใน session ฝั่ง server
+        function declinedView() {
+          var b = box("warn", "ยังไม่ได้ส่งคำขออนุมัติ", "ท่านสามารถกลับมาส่งคำขอถึงหัวหน้ากองได้ภายหลัง");
+          var a = el("div", "actions");
+          var later = el("button", "btn", "ส่งคำขอภายหลัง");
+          later.type = "button";
+          later.onclick = promptView;
+          a.appendChild(later);
+          b.appendChild(a);
+        }
+        function errorView() {
+          var b = box("err", "ส่งคำขออนุมัติไม่สำเร็จ", ERR_TEXT[err] || "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
           if (err === "cas" || err === "upstream" || err === "login") {
-            addLink("backend/approval_submit.php", "ลองส่งใหม่");
+            var a = el("div", "actions");
+            a.appendChild(link("backend/approval_submit.php", "ลองส่งใหม่"));
+            b.appendChild(a);
           }
         }
+        function row(parent, label, value) {
+          if (!value) return;
+          var d = el("div");
+          d.appendChild(el("b", "", label + ": "));
+          d.appendChild(document.createTextNode(value));
+          parent.appendChild(d);
+        }
+        function resultView(d) {
+          var kind = d.status === "approved" ? "ok" : d.status === "rejected" ? "err" : "ok";
+          var title = d.status === "approved" ? "หัวหน้ากองอนุมัติแล้ว"
+            : d.status === "rejected" ? "หัวหน้ากองไม่อนุมัติ"
+            : "ส่งคำขออนุมัติถึงหัวหน้ากองแล้ว";
+          var msg = d.status === "approved" ? "คำขออนุมัติของท่านได้รับการอนุมัติเรียบร้อย"
+            : d.status === "rejected" ? "กรุณาติดต่อเจ้าหน้าที่หากต้องการสอบถามเพิ่มเติม"
+            : "ระบบได้ส่งคำขอของท่านไปยังหัวหน้ากองเรียบร้อย กรุณารอการพิจารณา";
+          var b = box(kind, title, msg);
+          var info = el("div", "info");
+          row(info, "หัวหน้ากอง", d.approver_name || "");
+          row(info, "อีเมล", d.approver_email || "");
+          row(info, "ตำแหน่ง", d.approver_position || "");
+          row(info, "สังกัด", d.approver_org || "");
+          if (info.childNodes.length) b.appendChild(info);
+        }
+        function checkFailView() {
+          box("warn", "ยังตรวจสอบผลไม่ได้", "กรุณารีเฟรชหน้านี้อีกครั้งในภายหลัง");
+        }
 
-        if (!/^JF-\d{10,14}-[a-f0-9]{8}$/.test(ref)) {
-          failView();
+        if (err) { errorView(); return; }
+
+        if (ref) {
+          if (!/^JF-\d{10,14}-[a-f0-9]{8}$/.test(ref)) { errorView(); return; }
+          fetch("backend/approval_result.php?ref=" + encodeURIComponent(ref))
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              if (!d || !d.ok) { checkFailView(); return; }
+              if (!d.found) {
+                box("warn", "ไม่พบคำขออนุมัติ", "กรุณาติดต่อเจ้าหน้าที่พร้อมแจ้งรหัสอ้างอิงด้านล่าง");
+                return;
+              }
+              resultView(d);
+            })
+            .catch(checkFailView);
           return;
         }
 
-        fetch("backend/approval_result.php?ref=" + encodeURIComponent(ref))
-          .then(function (r) { return r.json(); })
-          .then(function (d) {
-            if (err) { failView(); return; }
-            if (!d || !d.ok) {
-              show("warn", "!", "ยังตรวจสอบผลไม่ได้", "กรุณารีเฟรชหน้านี้อีกครั้งในภายหลัง");
-              return;
-            }
-            if (!d.found) {
-              show("warn", "!", "ไม่พบคำขออนุมัติ", "กรุณาติดต่อเจ้าหน้าที่พร้อมแจ้งรหัสอ้างอิงด้านล่าง");
-              return;
-            }
-            var who = d.approver_name || "หัวหน้ากอง";
-            if (d.status === "approved") {
-              show("ok", "✓", "หัวหน้ากองอนุมัติแล้ว", "คำขออนุมัติของท่านได้รับการอนุมัติเรียบร้อย");
-            } else if (d.status === "rejected") {
-              show("err", "!", "หัวหน้ากองไม่อนุมัติ", "กรุณาติดต่อเจ้าหน้าที่หากต้องการสอบถามเพิ่มเติม");
-            } else {
-              show("ok", "✓", "ส่งคำขออนุมัติถึงหัวหน้ากองแล้ว", "ระบบได้ส่งคำขอของท่านไปยังหัวหน้ากองเรียบร้อย กรุณารอการพิจารณา");
-            }
-            addText("approver", "หัวหน้ากองผู้พิจารณา: " + who);
-          })
-          .catch(function () {
-            if (err) failView();
-            else show("warn", "!", "ยังตรวจสอบผลไม่ได้", "กรุณารีเฟรชหน้านี้อีกครั้งในภายหลัง");
-          });
+        if (needsApproval) promptView();
       })();
     </script>
   </body>

@@ -36,6 +36,12 @@ function dkc_app_url(): string
 /** ไปหน้า Thank you พร้อมพารามิเตอร์ (ใช้ path ของเว็บนี้เสมอ ไม่รับ URL จากผู้ใช้) */
 function dkc_redirect_thankyou(array $params = []): void
 {
+    // แนบชื่อ/คอร์ส/ประเภท ของผู้สมัครที่เก็บไว้ใน session (ให้หน้า Thank you ทักทายและแสดงหลักสูตรได้ และกด "ลองส่งใหม่" ได้)
+    if (!empty($_SESSION['applicant']) && is_array($_SESSION['applicant'])) {
+        foreach (['name', 'course', 'type'] as $k) {
+            if (!isset($params[$k]) && !empty($_SESSION['applicant'][$k])) $params[$k] = $_SESSION['applicant'][$k];
+        }
+    }
     $q = $params ? '?' . http_build_query($params) : '';
     header('Location: ' . dkc_app_url() . '/thankyou.html' . $q, true, 302);
     exit;
