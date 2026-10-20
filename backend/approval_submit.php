@@ -6,6 +6,7 @@
 require_once __DIR__ . '/lib/load_env.php';
 require_once __DIR__ . '/lib/user_session.php';
 require_once __DIR__ . '/lib/CasClient.php';
+require_once __DIR__ . '/lib/ApprovalMessage.php';
 require_once __DIR__ . '/lib/ApprovalRepository.php';
 require_once __DIR__ . '/../database/config.php';
 
@@ -43,23 +44,10 @@ try {
     }
 
     $subject = mb_substr("ขออนุมัติสมัครอบรม: $course", 0, 200, 'UTF-8');
-    $title   = 'ระบบสมัครอบรมคอมพิวเตอร์';
-    // ข้อความธรรมดา: ใช้เก็บลง Neon และเป็นข้อความสำรองเมื่อปิดโหมด HTML
-    $message = mb_substr("$title\nขออนุมัติให้ $name เข้าอบรมหลักสูตร $course", 0, 2000, 'UTF-8');
-    // ข้อความที่ส่งไป CAS: ตั้ง CAS_MSG_HTML=1 บน Render เพื่อส่งแบบ HTML (ปิด/ลบตัวแปร = กลับเป็นข้อความธรรมดา)
-    $sendMsg = $message;
-    if (getenv('CAS_MSG_HTML') === '1') {
-        $e   = fn($v) => htmlspecialchars((string) $v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); // กันแทรกโค้ดจากชื่อ/คอร์สที่ผู้ใช้กรอก
-        $lab = 'padding:4px 14px 4px 0;color:#64748b;vertical-align:top;white-space:nowrap';
-        $val = 'padding:4px 0;color:#0f172a';
-        $sendMsg = '<div style="font-family:Tahoma,Arial,sans-serif;font-size:15px;line-height:1.5;color:#0f172a">'
-            . '<div style="font-size:18px;font-weight:bold;color:#1d4ed8;padding-bottom:6px;border-bottom:2px solid #1d4ed8;margin-bottom:10px">' . $e($title) . '</div>'
-            . '<div style="margin-bottom:6px">ขออนุมัติให้ผู้สมัครเข้าอบรม</div>'
-            . '<table style="border-collapse:collapse">'
-            . '<tr><td style="' . $lab . '">ผู้สมัคร</td><td style="' . $val . ';font-weight:bold">' . $e($name) . '</td></tr>'
-            . '<tr><td style="' . $lab . '">หลักสูตร</td><td style="' . $val . '">' . $e($course) . '</td></tr>'
-            . '</table></div>';
-    }
+    $msg     = ApprovalMessage::build($name, $course);
+    $message = $msg['plain'];                                   // ข้อความธรรมดา: เก็บลง Neon และเป็นข้อความสำรอง
+    // ตั้ง CAS_MSG_HTML=1 บน Render เพื่อส่งแบบ HTML (ลบตัวแปร = กลับเป็นข้อความธรรมดา)
+    $sendMsg = (getenv('CAS_MSG_HTML') === '1') ? $msg['html'] : $message;
 
     try {
         $cas = CasClient::fromEnv();
