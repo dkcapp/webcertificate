@@ -596,6 +596,7 @@ https://comtrain-webcertificate.onrender.com/thankyou.html?name={typeA110}%20{in
 | `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` | ได้จากทีม IT (Secret) ใช้ทั้งล็อกอินและ CAS | `DkcOAuth.php`, `CasClient.php` |
 | `OAUTH_REDIRECT_URI` | `https://comtrain-webcertificate.onrender.com/backend/oauth_callback.php` ต้องตรงกับที่ลงทะเบียนไว้ | `DkcOAuth.php` |
 | `CAS_CLIENT_ID` / `CAS_CLIENT_SECRET` | (ไม่บังคับ) ถ้า CAS ใช้คีย์คนละชุดกับล็อกอิน | `CasClient.php` |
+| `CAS_MSG_HTML` | (ไม่บังคับ) ตั้งเป็น `1` เพื่อส่งข้อความถึงหัวหน้ากองเป็น HTML (หัวข้อ + ตาราง ผู้สมัคร/หลักสูตร) ถ้าไม่ตั้งหรือตั้งอย่างอื่น = ข้อความธรรมดา ค่าที่ผู้ใช้กรอกถูก escape เสมอ | `backend/approval_submit.php` |
 | `AIRTABLE_API_KEY` | Personal Access Token จาก Airtable | `backend/admin_api.php` |
 | `AIRTABLE_BASE_ID` | Base ID ของ Airtable (ขึ้นต้นด้วย `app`) | `backend/admin_api.php` |
 | `AIRTABLE_TABLE_ID` | Table ID ของ Airtable (ขึ้นต้นด้วย `tbl`) | `backend/admin_api.php` |
