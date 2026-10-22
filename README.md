@@ -1,424 +1,555 @@
-# ระบบออกใบประกาศนียบัตร — ศูนย์อบรมคอมพิวเตอร์ วัดพระธรรมกาย
+# ระบบออกใบประกาศนียบัตร + รับสมัครอบรม + ขออนุมัติหัวหน้ากอง
+**ศูนย์อบรมคอมพิวเตอร์ วัดพระธรรมกาย**
 
-ระบบออกใบประกาศนียบัตรให้ผู้เข้าอบรม พร้อมระบบจัดการหลักสูตร/รายชื่อผู้เรียน รับสมัครผ่านฟอร์มออนไลน์ของบริษัทแบบอัตโนมัติ (บันทึกเข้าทั้ง Airtable เดิมและระบบใหม่พร้อมกัน) และ **ส่งคำขออนุมัติจากหัวหน้ากอง (CAS) ให้ผู้สมัครอัตโนมัติหลังกรอกฟอร์ม** พร้อมแท็บให้แอดมินดูสถานะคำขอทั้งหมด
+เว็บไซต์ใช้งานจริง: https://comtrain-webcertificate.onrender.com/
 
-**เว็บไซต์ใช้งานจริง:** https://comtrain-webcertificate.onrender.com/
+เอกสารนี้เขียนให้ **ทีมที่จะมาพัฒนาต่อ** อ่านแล้วเข้าใจทั้งระบบ: แต่ละส่วนทำอะไร ข้อมูลไหลจากไหนไปไหน เก็บที่ไหน ตั้งค่าอะไรไว้ที่ไหน และถ้าจะแก้ต้องแก้ตรงไหน
 
 ---
 
 ## สารบัญ
-1. [ภาพรวมระบบทำอะไรได้บ้าง](#ภาพรวมระบบทำอะไรได้บ้าง)
-2. [สถาปัตยกรรมระบบ (System Architecture)](#สถาปัตยกรรมระบบ-system-architecture)
-3. [เทคโนโลยีที่ใช้](#เทคโนโลยีที่ใช้)
-4. [โครงสร้างไฟล์ + คำอธิบายทีละไฟล์](#โครงสร้างไฟล์--คำอธิบายทีละไฟล์)
-5. [โครงสร้างฐานข้อมูล](#โครงสร้างฐานข้อมูล)
-6. [Data Flow แต่ละสถานการณ์](#data-flow-แต่ละสถานการณ์)
-7. [การเชื่อมต่อ JotForm ของบริษัท (Dual-write เข้า Airtable + เว็บใหม่)](#การเชื่อมต่อ-jotform-ของบริษัท-dual-write-เข้า-airtable--เว็บใหม่)
-8. [ระบบขออนุมัติ (CAS) — ล็อกอิน DKC + หน้า Thank you + แท็บแอดมิน](#ระบบขออนุมัติ-cas--ล็อกอิน-dkc--หน้า-thank-you--แท็บแอดมิน)
-9. [วิธีรันโปรเจกต์บนเครื่องตัวเอง (Local Setup)](#วิธีรันโปรเจกต์บนเครื่องตัวเอง-local-setup)
-10. [Environment Variables ที่ต้องตั้งค่า](#environment-variables-ที่ต้องตั้งค่า)
-11. [ข้อจำกัดและวิธีแก้ที่ใช้อยู่](#ข้อจำกัดและวิธีแก้ที่ใช้อยู่)
-12. [ปัญหาที่เคยเจอ และวิธีแก้ (Troubleshooting Log)](#ปัญหาที่เคยเจอ-และวิธีแก้-troubleshooting-log)
-13. [ประวัติการพัฒนา](#ประวัติการพัฒนา)
-14. [สถานะปัจจุบันและงานที่เหลือ](#สถานะปัจจุบันและงานที่เหลือ)
+1. [ระบบนี้ทำอะไร](#1-ระบบนี้ทำอะไร)
+2. [แผนที่ระบบทั้งหมด (ใครคุยกับใคร)](#2-แผนที่ระบบทั้งหมด-ใครคุยกับใคร)
+3. [หลักการทำงานแต่ละระบบ](#3-หลักการทำงานแต่ละระบบ)
+   - 3.1 ดาวน์โหลดใบประกาศ
+   - 3.2 สมัครเรียนผ่าน JotForm → บันทึก Airtable + Neon
+   - 3.3 หน้า Thank you ทำงานอย่างไร
+   - 3.4 ระบบขออนุมัติหัวหน้ากอง (DKC OAuth + CAS)
+   - 3.5 แอดมินดูสถานะคำขอ
+   - 3.6 แอดมินจัดการข้อมูลและนำเข้าจาก Airtable
+4. [เทคโนโลยีที่ใช้](#4-เทคโนโลยีที่ใช้)
+5. [โครงสร้างไฟล์ + คำอธิบายทีละไฟล์](#5-โครงสร้างไฟล์--คำอธิบายทีละไฟล์)
+6. [โครงสร้างฐานข้อมูล (Neon)](#6-โครงสร้างฐานข้อมูล-neon)
+7. [รายการ Endpoint ทั้งหมด](#7-รายการ-endpoint-ทั้งหมด)
+8. [การตั้งค่าระบบภายนอก (JotForm / DKC OAuth+CAS / Airtable)](#8-การตั้งค่าระบบภายนอก-jotform--dkc-oauthcas--airtable)
+9. [Environment Variables](#9-environment-variables)
+10. [รันบนเครื่องตัวเอง (Local Setup)](#10-รันบนเครื่องตัวเอง-local-setup)
+11. [Deploy และเช็คลิสต์ก่อนเปิดใช้จริง](#11-deploy-และเช็คลิสต์ก่อนเปิดใช้จริง)
+12. [ความปลอดภัย](#12-ความปลอดภัย)
+13. [คู่มือสำหรับนักพัฒนา: อยากแก้เรื่องนี้ ต้องแก้ตรงไหน](#13-คู่มือสำหรับนักพัฒนา-อยากแก้เรื่องนี้-ต้องแก้ตรงไหน)
+14. [ข้อจำกัดและการตัดสินใจที่ผ่านมา](#14-ข้อจำกัดและการตัดสินใจที่ผ่านมา)
+15. [ปัญหาที่เคยเจอ และวิธีแก้ (Troubleshooting)](#15-ปัญหาที่เคยเจอ-และวิธีแก้-troubleshooting)
+16. [ประวัติการพัฒนา](#16-ประวัติการพัฒนา)
+17. [สถานะปัจจุบันและงานที่เหลือ](#17-สถานะปัจจุบันและงานที่เหลือ)
 
 ---
 
-## ภาพรวมระบบทำอะไรได้บ้าง
+## 1. ระบบนี้ทำอะไร
 
-ระบบนี้มี 3 กลุ่มผู้ใช้งาน (และมีระบบขออนุมัติทำงานต่อเนื่องจากกลุ่มที่ 3 — ดูหัวข้อ [ระบบขออนุมัติ](#ระบบขออนุมัติ-cas--ล็อกอิน-dkc--หน้า-thank-you--แท็บแอดมิน)):
+มี 4 บทบาทผู้ใช้:
 
-### 1. ผู้เข้าอบรม (หน้าแรกของเว็บ — Public)
-เลือก **ปีที่อบรม → หลักสูตร → ชื่อตัวเอง** แล้วกดดาวน์โหลดใบประกาศนียบัตรเป็นไฟล์ภาพ (PNG) ได้ทันที ระบบจะดึงชื่อ-นามสกุลมาใส่ในใบประกาศให้อัตโนมัติ พร้อม QR Code สำหรับตรวจสอบความถูกต้อง (ถ้าหลักสูตรนั้นตั้งค่า verify URL ไว้)
+| ผู้ใช้ | ทำอะไร | ผ่านหน้าไหน |
+|---|---|---|
+| **ผู้เข้าอบรม** (ทั่วไป ไม่ต้องล็อกอิน) | เลือกปี → หลักสูตร → ชื่อตัวเอง แล้วดาวน์โหลดใบประกาศเป็นรูป PNG (มี QR Code สำหรับตรวจสอบ) | `index.html` (หน้าแรก) |
+| **ผู้สมัครเรียนใหม่** | กรอกฟอร์ม JotForm ของบริษัท → เห็นหน้า "ขอบคุณ" + QR กลุ่มไลน์ → (ถ้ามีบัญชี AD) เลือกส่งคำขออนุมัติถึงหัวหน้ากอง | JotForm → `thankyou.html` |
+| **หัวหน้ากอง** | ได้อีเมลจากระบบ CAS ของ DKC แล้วกด "อนุมัติ / ไม่อนุมัติ" | อีเมล / ระบบ CAS (ไม่ใช่เว็บนี้) |
+| **เจ้าหน้าที่ (แอดมิน)** | จัดการหลักสูตร/รายชื่อผู้เรียน, ดูสถานะคำขออนุมัติทั้งหมด, นำเข้าข้อมูลจาก Airtable | `index.html` → แท็บแอดมิน (ต้องล็อกอิน) |
 
-### 2. เจ้าหน้าที่ (Admin Panel — ต้อง Login)
-- **จัดการหลักสูตร** — เพิ่ม/แก้ไข/ลบหลักสูตร, วันที่อบรม, ปี พ.ศ., ลิงก์ QR verify (มีทั้งชื่อสั้น `short_name` และชื่อยาว `long_key`)
-- **จัดการรายชื่อผู้เรียน** — ดู/ค้นหา/แก้ไข/ลบ พร้อมแบ่งหน้าและเรียงลำดับ
-- **เปิด/ปิดรับสมัคร** — เลือกหลักสูตรที่เปิดให้สมัคร แล้วกด "Sync to JotForm" เพื่ออัปเดต dropdown ของฟอร์มให้ตรงกับหลักสูตรที่เปิดอยู่จริง (แสดงและ sync เป็น**ชื่อยาว** `long_key` ไม่ใช่ชื่อย่ออีกต่อไป — ดูหัวข้อ [Data Flow ข้อ 3](#3-admin-เปิดปิดคอร์สแล้ว-sync-ไปยัง-jotform))
-- **คำขออนุมัติ** — แท็บที่ 3 บนแถบบน แสดงคำขออนุมัติของทุกคนพร้อมสถานะ (รออนุมัติ / อนุมัติแล้ว / ไม่อนุมัติ) ค้นหาและกรองสถานะได้ ติดตามสถานะอย่างเดียว ไม่กระทบการออกใบประกาศ
-- **นำเข้าข้อมูลจาก Airtable** — ดึงรายชื่อคอร์สและผู้สมัครจาก Airtable (ทั้งชุดข้อมูลเก่า และรายการที่ตกหล่นจาก webhook เพราะยังไม่มีคอร์สในระบบ) เปรียบเทียบกับคอร์สในระบบ แบ่งเป็น "คอร์สใหม่" และ "คอร์สที่มีอยู่แล้ว" แล้วเลือกนำเข้าเป็นรายคอร์ส
-
-### 3. ผู้สมัครเรียนใหม่ (ภายนอกบริษัท ผ่าน JotForm ของบริษัท)
-กรอกฟอร์มสมัครที่ **https://form.jotform.com/231301336713444** (ฟอร์มจริงของบริษัท ไม่ใช่ฟอร์มทดลองอีกต่อไป) เลือกหลักสูตรจาก dropdown แล้วกด Submit — ข้อมูลจะถูกส่งเข้า **2 ที่พร้อมกันโดยอัตโนมัติ**:
-1. **Airtable ของบริษัท** (การเชื่อมต่อเดิม ไม่ถูกแตะต้อง ทำงานเหมือนเดิมทุกประการ)
-2. **Neon (ระบบเว็บใหม่นี้)** ผ่าน Webhook ที่เพิ่มเข้ามาเสริม
-
-จากนั้น JotForm พาผู้สมัครไปที่หน้า **Thank you ของเว็บนี้** (`thankyou.html`) ซึ่งตัดสินในโค้ดว่า แสดงหน้า "ขอบคุณ" พร้อมชื่อ หลักสูตร และ QR Code กลุ่มไลน์ (ไฟล์ `assets/images/line-qr.png` ถ้ายังไม่มีไฟล์จะแสดงกรอบสีเทา) ถ้าประเภทสมาชิกเป็นประเภทอื่นที่ไม่ใช่ "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" (มีบัญชี AD และกอง) จะถามว่า "ต้องการส่งคำขออนุมัติถึงหัวหน้ากองเลยไหม" ปุ่ม **ตกลง** = ล็อกอิน DKC แล้วส่งคำขอ (กลับมาหน้าเดิมพร้อมชื่อ/อีเมล/ตำแหน่ง/สังกัดหัวหน้ากอง) ปุ่ม **ยกเลิก** = ไม่ส่ง และมีปุ่ม "ส่งคำขอภายหลัง" (ผู้สมัครเลือกไม่ส่งได้)
-
-> ⚠️ **สำคัญ:** แอดมินยังคงไปเปิด/ปิดคอร์สและแก้ไข dropdown ที่หน้า **JotForm โดยตรง** เหมือนระบบเดิม ไม่ได้ทำผ่านเว็บนี้อีกต่อไป (ฟีเจอร์ "เปิดรับสมัคร" ในเว็บยังมีโค้ดอยู่ แต่ไม่ได้ใช้งานจริงกับฟอร์มบริษัท) — ดูรายละเอียดที่หัวข้อ [การเชื่อมต่อ JotForm ของบริษัท](#การเชื่อมต่อ-jotform-ของบริษัท-dual-write-เข้า-airtable--เว็บใหม่)
+**แนวคิดสำคัญ 3 ข้อ** (ถ้าจำได้แค่นี้ ก็เข้าใจครึ่งหนึ่งของระบบแล้ว)
+1. **Dual-write:** ข้อมูลผู้สมัครเข้า **2 ที่พร้อมกัน** — Airtable ของบริษัท (ระบบเดิม ไม่แตะ) และ Neon (ฐานข้อมูลของเว็บนี้) ผ่าน Webhook
+2. **การอนุมัติเป็นเพียง "การติดตามสถานะ"** — ผลอนุมัติ/ไม่อนุมัติไม่ส่งผลต่อการสมัคร ข้อมูลผู้เรียน หรือการออกใบประกาศ และผู้สมัครเลือก "ไม่ส่งคำขอ" ได้
+3. **เว็บนี้ล็อกอิน DKC และคุยกับ CAS เอง** — ไม่พึ่ง DKC Portal (Cloudflare Worker) ตัวเดิมอีกแล้ว สถานะคำขอทั้งหมดอยู่ใน Neon
 
 ---
 
-## สถาปัตยกรรมระบบ (System Architecture)
+## 2. แผนที่ระบบทั้งหมด (ใครคุยกับใคร)
 
-![System Architecture Diagram](assets/docs/architecture-diagram.png)
+```mermaid
+flowchart TD
+    A([👤 ผู้สมัครเรียน]) -->|กรอกฟอร์ม| JF[JotForm\nฟอร์มบริษัท]
+    JF -->|①②  Airtable Integration\nระบบเดิม ไม่แตะ| AT[(Airtable)]
+    JF -->|③ Webhook| WH[jotform_webhook.php]
+    WH -->|insert students| DB[(Neon PostgreSQL)]
+    JF -->|④ Redirect URL| TY[thankyou.html]
 
-### ระบบขออนุมัติ: เว็บใบประกาศทำเองทั้งหมด (ไม่พึ่ง DKC Portal)
+    TY -->|ต้องขออนุมัติ + กด ตกลง| AS[approval_start.php]
+    AS -->|⑤ ยังไม่ล็อกอิน| OL[oauth_login.php]
+    OL -->|redirect authorize| DKCO[DKC OAuth\noauth.dhammakaya.network]
+    DKCO -->|code callback| OC[oauth_callback.php]
+    OC --> SUB[approval_submit.php]
+    AS -->|ล็อกอินแล้ว| SUB
+    SUB -->|CAS request| CAS[DKC CAS]
+    SUB -->|insert approval_requests| DB
+    CAS -->|อีเมล อนุมัติ/ไม่อนุมัติ| HH([📧 หัวหน้ากอง])
+    HH -->|กดผลในอีเมล| CAS
+    CAS -->|⑥ GET callback| CC[cas_callback.php]
+    CC -->|updateStatus| DB
 
+    TY -->|poll ref| AR[approval_result.php]
+    AR -->|query| DB
+
+    ADM([🔐 แอดมิน]) --> IDX[index.html\nAdmin Panel]
+    IDX --> AAPI[admin_api.php]
+    AAPI --> DB
+    AAPI <-->|นำเข้า| AT
+
+    B([📜 ผู้เข้าอบรม]) -->|ดูใบประกาศ| IDX
+    IDX --> API[api.php]
+    API --> DB
+
+    style AT fill:#fcf3cf,stroke:#f0c040
+    style DB fill:#d5f5e3,stroke:#27ae60
+    style DKCO fill:#d6eaf8,stroke:#2980b9
+    style CAS fill:#d6eaf8,stroke:#2980b9
 ```
-[JotForm] ──redirect──▶ thankyou.html ──(ประเภทต้องขออนุมัติ)──▶ backend/approval_start.php
-                              ▲                                        │ (ยังไม่ล็อกอิน)
-                              │                                        ▼
-                              │                  backend/oauth_login.php ──▶ DKC OAuth (oauth.dhammakaya.network)
-                              │                                                      │
-                              │                  backend/oauth_callback.php ◀────────┘ (redirect_uri)
-                              │                                        │
-                              │                  backend/approval_submit.php ──▶ CAS /api/cas/request
-                              │                                        │ บันทึก Neon (approval_requests)
-                              └──── redirect กลับ ?ref=JF-... ◀────────┘
-CAS ──(หัวหน้ากองกดอนุมัติ/ปฏิเสธ)──▶ backend/cas_callback.php ──▶ ถาม CAS reqstat ซ้ำ ──▶ อัปเดต Neon
-thankyou.html ──▶ approval_result.php ──▶ Neon        แท็บ "คำขออนุมัติ" ──▶ admin_api.php ──▶ Neon
-```
 
-- เว็บใบประกาศ (Render, PHP) ล็อกอินผู้ใช้ผ่าน DKC OAuth เอง ส่งคำขอไป CAS เอง และเก็บคำขอ/สถานะใน **Neon** ตาราง `approval_requests`
-- DKC Portal (Cloudflare Worker) **เลิกใช้แล้ว** (ข้อมูลเก่าใน D1 ไม่ถูกย้าย)
+**ลำดับเหตุการณ์ตอนมีคนสมัคร** (ตัวเลขตรงกับในแผนภาพ)
+1. ผู้สมัครกรอกฟอร์มแล้วกด Submit
+2. JotForm บันทึกเข้า Airtable ตาม integration เดิม (ไม่เกี่ยวกับเว็บนี้)
+3. JotForm ยิง Webhook ไป `backend/jotform_webhook.php` → เว็บนี้บันทึกลง Neon ตาราง `students`
+4. JotForm พาผู้สมัครไป `thankyou.html?name=…&course=…&type=…` (ทำพร้อมกับข้อ 3 แต่เป็นอิสระต่อกัน)
+5. ถ้าประเภทสมาชิกต้องขออนุมัติ และผู้สมัครกด **ตกลง** → เว็บพาไปล็อกอิน DKC แล้วส่งคำขอไป CAS
+6. หัวหน้ากองกดอนุมัติ/ไม่อนุมัติ → CAS เรียก `cas_callback.php` กลับมา → เว็บอัปเดตสถานะใน Neon
 
-### สถาปัตยกรรมภายในฝั่ง Backend
-
-โค้ดฝั่ง PHP แบ่งเป็น 3 ชั้นตามหลัก separation of concerns:
-
-```
-ไฟล์ endpoint (admin_api.php, api.php, active_courses.php, jotform_webhook.php)
-        │  รับ HTTP request, validate input เบื้องต้น, ตอบ JSON กลับ
-        ▼
-Repository layer (backend/lib/CourseRepository.php, StudentRepository.php)
-        │  รวม SQL ทั้งหมดไว้ที่เดียว ไม่ปนกับ HTTP handling
-        ▼
-Database (Neon PostgreSQL)
-```
-
-พร้อมด้วยไฟล์ shared ที่ endpoint ทุกตัวเรียกใช้ร่วมกัน:
-- **`backend/lib/load_env.php`** — โหลดไฟล์ `.env` เข้า environment อัตโนมัติตอนรันบนเครื่อง local (บน Render ข้ามไปเลย เพราะไม่มีไฟล์ `.env`)
-- **`backend/lib/require_admin.php`** — middleware เช็คสิทธิ์ admin กลาง ใช้ที่เดียวไม่ต้องเขียนซ้ำทุกไฟล์
-- **`backend/lib/error_handler.php`** — จัดการ error กลาง log รายละเอียดจริงไว้ฝั่ง server เท่านั้น ส่งข้อความทั่วไปกลับไปหา client (ไม่เผยรายละเอียด database ให้ผู้ไม่หวังดี)
-
-### สถาปัตยกรรมภายในฝั่ง Frontend
-
-`index.html` เหลือแค่ markup ล้วน ๆ ไม่มี CSS/JavaScript ฝังอยู่ในไฟล์แล้ว โดยแยกออกเป็น:
-
-```
-index.html (markup เท่านั้น)
-   ├── assets/css/style.css        สไตล์ทั้งหมดของเว็บ
-   └── assets/js/
-         ├── certificate.js        หน้าดาวน์โหลดใบประกาศ (โหลดข้อมูล, dropdown, พรีวิว, ดาวน์โหลด PNG)
-         ├── auth.js               ระบบ login/logout admin
-         └── admin.js              ตรรกะหน้า Admin Panel ทั้งหมด (ตารางคอร์ส, ตารางผู้เรียน, เปิดรับสมัคร, นำเข้า Airtable)
-```
+> ข้อ 3 กับข้อ 4 **ไม่ขึ้นต่อกัน** ถ้า Webhook ล้มเหลว (เช่น หาคอร์สไม่เจอ) ผู้สมัครก็ยังเห็นหน้า Thank you ปกติ และ Airtable ยังได้ข้อมูลครบ
 
 ---
 
-## เทคโนโลยีที่ใช้
+## 3. หลักการทำงานแต่ละระบบ
+
+### 3.1 ดาวน์โหลดใบประกาศ
+
+```mermaid
+sequenceDiagram
+    actor U as ผู้เข้าอบรม
+    participant B as Browser (index.html)
+    participant A as api.php
+    participant D as Neon
+
+    U->>B: เปิดเว็บ
+    B->>A: GET /backend/api.php
+    A->>D: students JOIN courses
+    D-->>A: รายชื่อทั้งหมด
+    A-->>B: JSON
+    B->>B: กรองเลือก ปี → หลักสูตร → ชื่อ\n(ฝั่ง browser ไม่ยิง API เพิ่ม)
+    U->>B: เลือกชื่อ → พรีวิวใบประกาศ + QR
+    U->>B: กด "ดาวน์โหลด"
+    B->>B: html2canvas แปลง HTML → PNG
+    B-->>U: บันทึกไฟล์ PNG
+    Note over B: เซิร์ฟเวอร์ไม่เก็บไฟล์ภาพ
+```
+
+### 3.2 สมัครเรียนผ่าน JotForm → บันทึก Airtable + Neon (Dual-write)
+
+```mermaid
+flowchart LR
+    U([👤 ผู้สมัคร]) -->|กรอกฟอร์ม\n+ กด Submit| JF[JotForm]
+
+    JF -->|ทันที\nAirtable Integration| AT[(Airtable\nระบบเดิม)]
+    JF -->|ทันที\nWebhook POST| WH[jotform_webhook.php]
+    JF -->|Redirect URL| TY[thankyou.html]
+
+    WH --> Q{หาคอร์สใน Neon\nตาม dropdown text}
+    Q -->|พบ| INS[INSERT students]
+    Q -->|ไม่พบ| LOG[log error\nAirtable ยังได้ข้อมูล]
+    INS --> DB[(Neon\nstudents)]
+
+    style AT fill:#fcf3cf,stroke:#f0c040
+    style DB fill:#d5f5e3,stroke:#27ae60
+    style LOG fill:#fadbd8,stroke:#e74c3c
+```
+
+> ⚠️ **ชื่อคอร์สใน dropdown ต้องตรงกับ `courses.long_key` (หรือ `short_name`) ทุกตัวอักษร** ถ้าไม่ตรง webhook จะตกไป log และ Neon จะไม่มีข้อมูล (Airtable ยังครบ) — แก้ด้วยการสร้างคอร์สให้ชื่อตรง แล้วใช้เมนู "นำเข้าข้อมูลจาก Airtable"
+**จุดที่ต้องรู้**
+- **ชื่อคอร์สใน dropdown ของ JotForm ต้องตรงกับ `courses.long_key` (หรือ `short_name`) ใน Neon ทุกตัวอักษร** ไม่งั้น webhook จะหาไม่เจอ
+- ระบบ **ไม่สร้างคอร์สให้อัตโนมัติ** (เจตนา เพื่อให้ข้อมูลคอร์สสะอาด) ถ้าตกหล่น ให้แอดมินสร้างคอร์สให้ตรงชื่อ แล้วใช้เมนู "นำเข้าข้อมูลจาก Airtable" ดึงรายชื่อย้อนหลัง (§3.6)
+- แอดมินยังเพิ่ม/แก้ตัวเลือกคอร์สที่ **JotForm โดยตรง** เหมือนเดิม (เมนู "เปิดรับสมัคร"/Sync ในเว็บยังมีโค้ดแต่ไม่ได้ใช้กับฟอร์มบริษัท)
+
+### 3.3 หน้า Thank you ทำงานอย่างไร (`thankyou.html`)
+
+JotForm ตั้งให้ redirect มาที่หน้านี้พร้อมพารามิเตอร์ (ดู §8.1):
+`thankyou.html?name=<ชื่อ นามสกุล>&course=<คอร์ส>&type=<ประเภทสมาชิก>`
+
+หน้านี้เป็นไฟล์เดียว (HTML+CSS+JS) **เสมอจะแสดงส่วนหลัก** คือ "ขอบคุณ" ตัวใหญ่ + ชื่อ + หลักสูตร + กรอบ QR Code กลุ่มไลน์ (`assets/images/line-qr.png` ถ้าไม่มีไฟล์จะเป็นกรอบสีเทา) แล้วเพิ่ม **กล่องขออนุมัติ** ตามสถานะ:
+
+```mermaid
+flowchart TD
+    START([เปิด thankyou.html?name=..&course=..&type=..]) --> P1{มี ?e= ใน URL?}
+
+    P1 -->|e=missing\nขาดพารามิเตอร์| ERR_M[❌ กล่องแดง\nกรอกฟอร์มใหม่]
+    P1 -->|e=login/cas/upstream\nส่งซ้ำได้| ERR_R[❌ กล่องแดง + ปุ่ม\nลองส่งใหม่]
+    P1 -->|e=dup/db\nส่งซ้ำไม่ได้| ERR_D[❌ กล่องแดง\nติดต่อเจ้าหน้าที่]
+    P1 -->|มี ?ref=| REF[📊 ดึงสถานะจาก\napproval_result.php]
+    REF --> STATUS{สถานะ?}
+    STATUS -->|pending| PEN[🟡 รออนุมัติ]
+    STATUS -->|approved| APR[🟢 อนุมัติแล้ว\n+ ชื่อ/อีเมลหัวหน้ากอง]
+    STATUS -->|rejected| REJ[🔴 ไม่อนุมัติ]
+
+    P1 -->|ไม่มี e / ref| MAIN[✅ ขอบคุณ + ชื่อ + คอร์ส\n+ กรอบ QR กลุ่มไลน์]
+    MAIN --> P2{ประเภทสมาชิก\nขึ้นต้น ผู้นำบุญ?}
+    P2 -->|ใช่| DONE[จบ ไม่มีกล่องขออนุมัติ]
+    P2 -->|ไม่| BOX[📦 กล่องถาม:\nส่งคำขออนุมัติหัวหน้ากองไหม?]
+    BOX -->|กด ตกลง| GO[approval_start.php\n→ ล็อกอิน DKC → ส่ง CAS]
+    BOX -->|กด ยกเลิก| LATER[💬 ส่งคำขอภายหลัง\nรีเฟรชหน้าเดิมได้]
+
+    style ERR_M fill:#fadbd8,stroke:#e74c3c
+    style ERR_R fill:#fadbd8,stroke:#e74c3c
+    style ERR_D fill:#fadbd8,stroke:#e74c3c
+    style PEN fill:#fef9e7,stroke:#f0c040
+    style APR fill:#d5f5e3,stroke:#27ae60
+    style REJ fill:#fadbd8,stroke:#e74c3c
+```
+- กฎ "ต้องขออนุมัติหรือไม่" ตัดสินที่ `thankyou.html`: ประเภทที่ **ไม่ใช่** "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" ถือว่ามีบัญชี AD และมีกอง
+- ข้อความจาก URL แสดงด้วย `textContent` เท่านั้น (กัน XSS) และจำกัดความยาว (ชื่อ 100 / คอร์ส 200 / ประเภท 100)
+- **ผู้สมัครไม่ถูกบังคับส่งคำขอ** กด "ยกเลิก" แล้วกลับมาส่งภายหลังได้ (รีเฟรชหน้าเดิมก็จะเห็นกล่องถามอีก)
+- รหัสผิดพลาด `e` ดู §3.4 ตารางท้ายหัวข้อ
+
+### 3.4 ระบบขออนุมัติหัวหน้ากอง (DKC OAuth + CAS)
+
+**คำศัพท์**
+- **DKC OAuth** (`oauth.dhammakaya.network`) — ระบบล็อกอินกลางของ DKC ใช้ยืนยันว่าผู้ใช้คือบัญชี AD ไหน (`username`)
+- **CAS** — ระบบอนุมัติของ DKC เว็บเราส่ง "คำขอ" ไป CAS แล้ว CAS **หาหัวหน้ากองของผู้ขอเอง** ส่งอีเมลหาหัวหน้า และเรียก callback กลับเมื่อหัวหน้ากดผล
+- **ผู้ขอ (requester)** = บัญชี AD ที่ล็อกอินตอนกด "ตกลง" (ไม่ใช่ชื่อที่กรอกในฟอร์ม)
+- **ExternalRefID / `ref`** = รหัสคำขอที่เว็บเราสร้าง รูปแบบ `JF-<epoch ms>-<hex 8 ตัว>` ใช้เป็น primary key ใน Neon และเป็นรหัสอ้างอิงกับ CAS
+
+#### ลำดับการทำงานเต็ม (Sequence)
+
+```mermaid
+sequenceDiagram
+    actor U as ผู้สมัคร
+    participant TY as thankyou.html
+    participant AS as approval_start.php
+    participant OL as oauth_login.php
+    participant DKC as DKC OAuth
+    participant OC as oauth_callback.php
+    participant SUB as approval_submit.php
+    participant CAS as DKC CAS
+    participant DB as Neon
+    participant HH as หัวหน้ากอง
+    participant CC as cas_callback.php
+    participant AR as approval_result.php
+
+    U->>TY: กด "ตกลง" ส่งคำขอ
+    TY->>AS: GET approval_start.php?name=&course=&type=
+    AS->>AS: สร้าง ref (JF-epoch-hex8)\nเก็บ session{pending, applicant}
+    alt ยังไม่ล็อกอิน DKC
+        AS->>OL: redirect
+        OL->>OL: สร้าง state สุ่ม (anti-CSRF)
+        OL->>DKC: redirect /oauth/authorize?state=
+        DKC-->>U: หน้าล็อกอิน DKC
+        U->>DKC: ใส่ username/password
+        DKC->>OC: GET ?code=&state= (redirect_uri)
+        OC->>OC: ตรวจ state
+        OC->>DKC: POST /oauth/token
+        DKC-->>OC: access_token
+        OC->>DKC: GET /api/user (Bearer)
+        DKC-->>OC: username, ชื่อ
+        OC->>OC: เก็บ session{user}\nเปลี่ยน session id
+        OC->>SUB: redirect
+    else ล็อกอินอยู่แล้ว
+        AS->>SUB: redirect
+    end
+    SUB->>DB: ตรวจ ref ซ้ำ (dup check)
+    SUB->>CAS: POST /api/cas/request\n(ref, username, MsgForHead, CallbackURL)
+    CAS-->>SUB: {success, RequestKey,\nHeadFullName, HeadShowEmail, Position, Org}
+    SUB->>DB: INSERT approval_requests
+    SUB->>TY: redirect thankyou.html?ref=
+    TY->>AR: fetch ?ref=
+    AR->>DB: query
+    DB-->>AR: status=PENDING + head info
+    AR-->>TY: {status:pending, approver_name, ...}
+    TY-->>U: 🟡 รออนุมัติหัวหน้ากอง
+
+    CAS->>HH: 📧 อีเมล พร้อมปุ่ม อนุมัติ/ไม่อนุมัติ
+    HH->>CAS: กดปุ่มในอีเมล
+    CAS->>CC: GET cas_callback.php?ExternalRefID=
+    CC->>CAS: POST /api/cas/reqstat (ไม่เชื่อ query string)
+    CAS-->>CC: Status=APPROVE... หรือ REJECT...
+    CC->>DB: UPDATE approval_requests SET status
+    CC-->>HH: หน้าขอบคุณ (แสดงให้หัวหน้ากองเห็น)
+
+    Note over U,TY: ถ้า U รีเฟรช thankyou หลังจากนี้
+    TY->>AR: fetch ?ref=
+    AR->>DB: query
+    DB-->>AR: status=APPROVE.../REJECT...
+    AR-->>TY: {status:approved/rejected}
+    TY-->>U: 🟢 อนุมัติแล้ว / 🔴 ไม่อนุมัติ
+```
+
+#### รายละเอียดสำคัญของแต่ละขั้น
+| ขั้น | ไฟล์ | สิ่งที่ทำและเหตุผล |
+|---|---|---|
+| เริ่ม | `approval_start.php` | สร้าง `ref` ฝั่ง server เก็บข้อมูลคำขอไว้ใน **session** (ไม่ใส่ใน URL ตอนไปล็อกอิน) ถ้าล็อกอินแล้วข้ามไปส่งเลย |
+| ล็อกอิน | `oauth_login.php` | สร้าง `state` สุ่ม 32 ตัวอักษร hex กัน CSRF แล้วส่งไป `/oauth/authorize` |
+| รับกลับ | `oauth_callback.php` | **ต้องตรงกับ redirect_uri ที่ลงทะเบียนกับ IT ทุกตัวอักษร** ตรวจ `state`, แลก token, ดึง `username` เก็บเฉพาะ username + ชื่อ ไม่เก็บ access token, เปลี่ยน session id (กัน session fixation) |
+| ส่งคำขอ | `approval_submit.php` | กันส่งซ้ำด้วย `ref`; เรียก CAS; **บันทึก Neon เฉพาะเมื่อ CAS รับสำเร็จ** ถ้า CAS ล้มเหลวจะเก็บ `pending` ไว้ให้กด "ลองส่งใหม่" ถ้า CAS รับแล้วแต่บันทึก Neon พลาด → `e=db` (ไม่ให้ส่งซ้ำ เพราะหัวหน้าได้อีเมลไปแล้ว) |
+| รับผล | `cas_callback.php` | **ไม่เชื่อสถานะใน query string** (ปลอมได้) ต้องถาม CAS ซ้ำ (`reqstat`) แล้วอัปเดต Neon ตามผลจริง ไม่ต้องล็อกอิน (CAS เป็นคนเรียก) |
+| แสดงผล | `approval_result.php` | thankyou.html ถามด้วย `ref` ตอบเฉพาะ สถานะ + ข้อมูลหัวหน้ากอง ไม่ส่งข้อมูลผู้สมัครกลับ |
+
+#### สถานะของคำขอ
+| ค่าใน Neon (`status`) | ความหมาย | ที่แสดง |
+|---|---|---|
+| `PENDING` | รอหัวหน้ากอง | รออนุมัติ (สีเหลือง) |
+| `APPROVE…` | หัวหน้ากองอนุมัติ | อนุมัติแล้ว (สีเขียว) |
+| `REJECT…` | หัวหน้ากองไม่อนุมัติ | ไม่อนุมัติ (สีแดง) |
+
+`ApprovalRepository::statusKind()` แปลงค่าดิบจาก CAS เป็น `pending` / `approved` / `rejected` ด้วยการดูขึ้นต้นข้อความ (ขึ้นต้น `APPROVE` / `REJECT` นอกนั้นเป็น pending)
+
+#### ข้อความที่ส่งถึงหัวหน้ากอง
+สร้างโดย `backend/lib/ApprovalMessage.php` (ใช้ร่วมกับ `approval_submit.php`)
+- **หัวข้อ:** `ขออนุมัติสมัครอบรม: [ชื่อคอร์ส]`
+- **ข้อความธรรมดา:** `ระบบสมัครอบรมคอมพิวเตอร์` ขึ้นบรรทัดใหม่ แล้ว `ขออนุมัติให้ [ชื่อ นามสกุล] เข้าอบรมหลักสูตร [คอร์ส]` (ข้อความนี้เก็บลง Neon คอลัมน์ `message` เสมอ)
+- **โหมด HTML** (ตั้ง `CAS_MSG_HTML=1` บน Render): หัวเรื่องสีน้ำเงินมีเส้นใต้ + ตาราง "ผู้สมัคร / หลักสูตร" **ทุกค่า escape ด้วย `htmlspecialchars`** เพราะชื่อ/คอร์สมาจากสิ่งที่ผู้ใช้กรอก (กันแทรกโค้ดเข้าอีเมลหัวหน้ากอง) ปิดโหมดได้โดยลบตัวแปร — ทดสอบแล้วว่า CAS แสดง HTML ได้
+- ปุ่ม อนุมัติ/ไม่อนุมัติ ในอีเมล **CAS เติมเอง** ไม่ได้มาจากเรา
+- `ApproveType` = `1` (อนุมัติโดยหัวหน้ากอง) กำหนดใน `approval_submit.php`
+
+#### รหัสผิดพลาดบนหน้า Thank you (`?e=`)
+| รหัส | ความหมาย | ปุ่ม "ลองส่งใหม่" |
+|---|---|---|
+| `missing` | ชื่อ/คอร์ส/ประเภทไม่ครบ หรือไม่มี session | ไม่มี (ให้กรอกฟอร์มใหม่) |
+| `login` | ล็อกอิน DKC ไม่สำเร็จ / state ไม่ตรง / ผู้ใช้ไม่อนุญาต / ตั้งค่า OAUTH_* ไม่ครบ | มี |
+| `cas` | CAS ไม่รับคำขอ (เช่น หา AD/หัวหน้ากองไม่พบ, client ไม่มีสิทธิ์) | มี |
+| `upstream` | CAS ไม่ตอบ / ตอบผิดรูปแบบ | มี |
+| `dup` | `ref` นี้ถูกใช้โดยผู้ใช้คนอื่นแล้ว | ไม่มี |
+| `db` | CAS รับคำขอแล้ว แต่บันทึก Neon ไม่สำเร็จ | ไม่มี (ติดต่อเจ้าหน้าที่พร้อมรหัสอ้างอิง) |
+
+#### Session 2 ชุดที่แยกกัน
+| Session | ชื่อคุกกี้ | ใช้กับ | เก็บอะไร |
+|---|---|---|---|
+| แอดมิน | `PHPSESSID` (ค่าเริ่มต้นของ PHP) | `auth.php`, `require_admin.php` | `is_admin` |
+| ผู้ใช้ DKC | `DKCUSER` (`user_session.php`) | `approval_*`, `oauth_*` | `user` (username, ชื่อ), `pending` (ref/name/course/type), `applicant`, `oauth_state` |
+
+คุกกี้ `DKCUSER` ตั้ง `HttpOnly`, `SameSite=Lax` (**ต้องเป็น Lax** เพื่อให้คุกกี้ติดมาตอน DKC redirect กลับ), `Secure` เมื่อเป็น HTTPS (ตรวจจาก `X-Forwarded-Proto` ของ Render), strict mode เปิด
+
+### 3.5 แอดมินดูสถานะคำขอ
+
+```
+แอดมิน เปิดแท็บ "คำขออนุมัติ"
+   └─▶ admin.js → fetchApprovals() (ค้นหาแบบ debounce, แบ่งหน้าละ 20)
+        └─▶ backend/admin_api.php?action=list_approval_requests&page=&status=&q=
+             └─▶ ApprovalRepository::listPage()  ──▶ Neon.approval_requests
+        ◀── { items, total, page, per_page, summary:{total, approved, rejected, pending} }
+   แสดง: วันที่ขอ | ผู้สมัคร | คอร์ส | ประเภท | ผู้ขอ (AD) | หัวหน้ากอง | สถานะ | อัปเดตล่าสุด
+```
+- เวลาเก็บเป็น **UTC** ใน Neon; `listPage()` ส่งออกด้วย `to_char` แล้ว `admin.js (formatThaiDateTime)` แปลงเป็นเวลาไทย
+- กรองสถานะ: ทั้งหมด / รออนุมัติ / อนุมัติแล้ว / ไม่อนุมัติ และค้นหาจากชื่อ/คอร์ส/ผู้ขอ/หัวหน้ากอง
+- `ApprovalRepository::insert()/updateStatus()` พยายาม **เดาผูก `student_id`** กับผู้เรียนใน Neon ด้วยชื่อ+คอร์ส (best-effort อาจว่างหรือผิดได้ถ้าชื่อซ้ำ)
+
+### 3.6 แอดมินจัดการข้อมูลและนำเข้าจาก Airtable
+
+**ล็อกอินแอดมิน:** `auth.js` → `backend/auth.php` (`action=login/logout/check`) เทียบกับ `ADMIN_USER`/`ADMIN_PASS` ใน env → ตั้ง `$_SESSION['is_admin']` (ผิดจะ `sleep(1)` กัน brute force) ทุก endpoint ของแอดมินเรียก `require_admin.php` ซึ่งตอบ 403 ถ้าไม่ได้ล็อกอิน
+
+**จัดการข้อมูล:** `admin.js` → `admin_api.php` (list/add/update/delete ของคอร์สและผู้เรียน, ค้นหา/กรอง/เรียงลำดับ/แบ่งหน้า — คอลัมน์ที่เรียงได้มี whitelist กัน SQL injection ผ่าน `ORDER BY`)
+
+**นำเข้าจาก Airtable** (ทั้งข้อมูลเก่าและรายการที่ webhook ตกหล่น):
+```
+[แอดมิน] กด "ดึงข้อมูลจาก Airtable"
+   → airtable_preview: AirtableClient::fetchAllRecords() (วน pagination ครั้งละ 100 จนครบ)
+   → ดึง courses ทั้งหมดจาก Neon ครั้งเดียว ทำ map ใน PHP (ไม่ query ทีละ record)
+   → จัดกลุ่มตามชื่อคอร์ส (field "โปรแกรมที่สมัคร") แยก "คอร์สใหม่" / "คอร์สที่มีอยู่แล้ว"
+[แอดมิน] กด "สร้างคอร์ส + นำเข้า" / "นำเข้านักเรียน" → เลือกรายชื่อ
+   → airtable_import_course (transaction เดียว):
+       1) สร้างคอร์สถ้าจำเป็น  2) ดึง Airtable ใหม่ (verify ฝั่ง server)  3) insert ทีละคน
+       → commit หรือ rollback ถ้าพัง
+```
+`students.airtable_id` ใช้กันนำเข้าซ้ำ (แถวที่มาจาก webhook จะเป็น `NULL`)
+
+---
+
+## 4. เทคโนโลยีที่ใช้
 
 | ส่วน | เทคโนโลยี | หน้าที่ |
 |---|---|---|
-| **Frontend** | HTML + CSS + Vanilla JavaScript (แยกไฟล์ตาม responsibility) | หน้าดาวน์โหลดใบประกาศ + หน้า Admin Panel |
-| **สร้างภาพใบประกาศ** | [html2canvas](https://html2canvas.hertzen.com/) | แปลง HTML เป็นไฟล์ภาพ PNG ให้ดาวน์โหลด |
-| **QR Code** | [qrcodejs](https://github.com/davidshimjs/qrcodejs) | สร้าง QR Code บนใบประกาศ |
-| **Backend** | PHP 8.2 (ไม่ใช้ framework, ใช้ PDO ตรง ๆ) | ประมวลผล API ทั้งหมด แบ่งเป็น Controller + Repository layer |
-| **Database** | [Neon](https://neon.tech) — PostgreSQL แบบ Serverless | เก็บข้อมูลหลักสูตรและผู้เรียนทั้งหมด |
-| **Hosting** | [Render](https://render.com) — Web Service แบบ Docker (แผนฟรี) | รันเว็บ PHP ให้มี public URL |
-| **Container** | Docker (`php:8.2-apache` + extension `pdo_pgsql`) | กำหนด environment ให้ Render รันได้ตรงตามที่ต้องการ |
-| **รับสมัครออนไลน์** | [JotForm](https://www.jotform.com) — **ฟอร์มบริษัทจริง `231301336713444`** | ฟอร์มให้คนภายนอกกรอกสมัครเรียน ส่งข้อมูลเข้า Airtable บริษัท (เดิม) + Webhook ของเว็บนี้ (ใหม่) พร้อมกัน |
-| **นำเข้าข้อมูลเก่า/ตกหล่น** | [Airtable REST API](https://airtable.com/developers/web/api/introduction) | ดึงรายชื่อผู้สมัครและคอร์สจาก Airtable บริษัท นำเข้าสู่ Neon (ทั้งข้อมูลเก่าครั้งเดียว และรายการที่ webhook หาไม่คอร์สเจอ) |
-| **ระบบขออนุมัติ** | PHP บน Render + Neon + DKC OAuth/CAS (`oauth.dhammakaya.network`) | ล็อกอินผู้ใช้ ส่งคำขออนุมัติถึงหัวหน้ากอง เก็บประวัติ/สถานะคำขอใน Neon (แทน DKC Portal เดิม) |
-| **Keep-alive** | [UptimeRobot](https://uptimerobot.com) | ปิงเว็บทุก 5 นาที ป้องกัน Render sleep หลัง idle 15 นาที |
+| Frontend | HTML + CSS + Vanilla JavaScript (แยกไฟล์ตามหน้าที่) | หน้าดาวน์โหลดใบประกาศ, Admin Panel, หน้า Thank you |
+| สร้างภาพใบประกาศ | [html2canvas](https://html2canvas.hertzen.com/) | แปลง HTML เป็น PNG ในเบราว์เซอร์ |
+| QR Code | [qrcodejs](https://github.com/davidshimjs/qrcodejs) | QR บนใบประกาศ |
+| Backend | PHP 8.2 (ไม่ใช้ framework, PDO ตรง ๆ, cURL) | API ทั้งหมด แบ่ง endpoint + repository |
+| Database | [Neon](https://neon.tech) PostgreSQL (Serverless) | ข้อมูลหลักสูตร ผู้เรียน และคำขออนุมัติ |
+| Hosting | [Render](https://render.com) Web Service แบบ Docker (แผนฟรี) | รันเว็บ PHP |
+| Container | Docker (`php:8.2-apache` + `pdo_pgsql`) | กำหนด environment |
+| รับสมัคร | JotForm (ฟอร์มบริษัท `231301336713444`) | ฟอร์มสมัคร + Webhook + Thank You redirect |
+| ระบบเดิมของบริษัท | Airtable (REST API) | เก็บข้อมูลสมัครเดิม + แหล่งนำเข้าย้อนหลัง |
+| ล็อกอิน | DKC OAuth (`oauth.dhammakaya.network`) | ยืนยันบัญชี AD ของผู้ขออนุมัติ |
+| ขออนุมัติ | DKC CAS (ที่เดียวกับ OAuth) | ส่งอีเมลหาหัวหน้ากอง + callback ผลอนุมัติ |
+| Keep-alive | UptimeRobot | ปิงเว็บทุก 5 นาที กัน Render หลับหลัง idle 15 นาที |
 
 ---
 
-## โครงสร้างไฟล์ + คำอธิบายทีละไฟล์
+## 5. โครงสร้างไฟล์ + คำอธิบายทีละไฟล์
 
 ```
 webcertificate/
-│   .env                    ← สร้างเองบนเครื่อง local (ห้าม commit ขึ้น GitHub)
-│   .gitignore
 │   Dockerfile
-│   index.html
-│   thankyou.html           ← หน้า Thank you หลังกรอกฟอร์ม (ตัดสินประเภท + แสดงผลคำขออนุมัติ)
+│   index.html                หน้าแรก + Admin Panel (markup ล้วน)
+│   thankyou.html             หน้า Thank you (ไฟล์เดียว มี CSS/JS ในตัว)
 │   README.md
+│   .env                      (เฉพาะเครื่อง local — ห้าม commit)
 │
-├───assets
-│   ├───css
-│   │       style.css
-│   │
-│   ├───docs
-│   │       architecture-diagram.png
-│   │
-│   ├───images
-│   │       line-qr.png
-│   │       logo.png
-│   │       main1.png
-│   │
-│   └───js
-│           admin.js
-│           auth.js
-│           certificate.js
+├── assets/
+│   ├── css/style.css
+│   ├── docs/architecture-diagram.png   ภาพสถาปัตยกรรมเดิม (เฉพาะส่วนใบประกาศ/JotForm/Airtable)
+│   ├── images/ logo.png, main1.png, line-qr.png (QR กลุ่มไลน์ — วางไฟล์จริงทับได้)
+│   └── js/ admin.js, auth.js, certificate.js
 │
-├───backend
-│   │   active_courses.php
-│   │   admin_api.php
-│   │   api.php
-│   │   auth.php
-│   │   approval_result.php     ← endpoint สาธารณะให้ thankyou.html ถามผลคำขอ (ตามรหัสอ้างอิง)
-│   │   jotform_webhook.php     ← รับ webhook จากฟอร์มบริษัท 231301336713444
-│   │
-│   └───lib
-│           AirtableClient.php
-│           CourseRepository.php
-│           error_handler.php
-│           load_env.php
-│           │           require_admin.php
-│           StudentRepository.php
+├── backend/
+│   ├── api.php                  ข้อมูลผู้เรียนสำหรับหน้าสาธารณะ
+│   ├── auth.php                 ล็อกอิน/ออกจากระบบแอดมิน
+│   ├── admin_api.php            CRUD + Airtable import + รายการคำขออนุมัติ (ต้องเป็นแอดมิน)
+│   ├── active_courses.php       เปิด/ปิดรับสมัคร + Sync JotForm (ไม่ได้ใช้จริงกับฟอร์มบริษัท)
+│   ├── jotform_webhook.php      รับ Webhook จาก JotForm → Neon
+│   ├── approval_start.php       เริ่มขอ: สร้าง ref เก็บ session แล้วไปล็อกอิน/ส่ง
+│   ├── oauth_login.php          เริ่มล็อกอิน DKC (สร้าง state)
+│   ├── oauth_callback.php       redirect_uri ของ DKC OAuth
+│   ├── approval_submit.php      ส่งคำขอไป CAS + บันทึก Neon
+│   ├── cas_callback.php         CallbackURL ที่ CAS เรียกกลับเมื่อหัวหน้ากองกดผล
+│   ├── approval_result.php      ผลคำขอให้หน้า Thank you (สาธารณะ ตาม ref)
+│   └── lib/
+│       ├── load_env.php, require_admin.php, error_handler.php
+│       ├── AirtableClient.php, CourseRepository.php, StudentRepository.php
+│       ├── ApprovalRepository.php   ตาราง approval_requests
+│       ├── ApprovalMessage.php      สร้างข้อความถึงหัวหน้ากอง (ธรรมดา/HTML)
+│       ├── DkcOAuth.php             ตัวเชื่อม DKC OAuth
+│       ├── CasClient.php            ตัวเชื่อม CAS
+│       └── user_session.php         session ผู้ใช้ DKC + ตัวช่วย redirect
 │
-└───database
-        config.php
-        schema.sql
-        seed.sql
+└── database/
+    ├── schema.sql               สร้างตารางทั้งหมด (รวม approval_requests)
+    ├── approval_requests.sql    สร้างเฉพาะตารางคำขอ (รันได้ครั้งเดียวบน DB ที่มีตารางอื่นแล้ว)
+    ├── seed.sql                 ข้อมูลตัวอย่าง (สมมติทั้งหมด)
+    └── config.php               getDB() อ่านค่าจาก env
 ```
 
-### `Dockerfile`
-ตั้งค่า container ที่ Render ใช้รันเว็บ: ใช้ image ตั้งต้น `php:8.2-apache`, ติดตั้ง `pdo_pgsql` extension (จำเป็นสำหรับต่อ Neon), คัดลอกโค้ดเข้า `/var/www/html/`, ตั้งให้ Apache ฟัง port ที่ Render กำหนดผ่าน environment variable `PORT`
-
-### `.env` (ไม่ได้อยู่ใน Git)
-ไฟล์เก็บ environment variables สำหรับรันบนเครื่อง local เท่านั้น ถูก ignore ไว้ใน `.gitignore` แล้ว ห้าม commit ขึ้น GitHub เด็ดขาด บน Render ตั้งค่าผ่าน Dashboard → Environment แทน
-
-### `index.html`
-Markup ล้วน ๆ ของหน้าเว็บทั้งหมด แบ่งเป็น 2 ส่วนหลักที่สลับกันด้วยแท็บ: หน้าดาวน์โหลดใบประกาศ (public) และหน้า Admin Panel (ต้อง login) ไม่มี CSS/JavaScript ฝังอยู่ในไฟล์นี้เลย
-
-### `thankyou.html`
-หน้า Thank you ของผู้สมัคร (ไฟล์เดียว มี CSS/JS ในตัว ไม่ผูกกับ `index.html`) JotForm พามาที่หน้านี้พร้อม `?name=&course=&type=` ทำงาน 3 แบบ:
-
-| สถานการณ์ | พฤติกรรม |
+### ราก / Frontend
+| ไฟล์ | หน้าที่ |
 |---|---|
-| มี `type` ที่ไม่ขึ้นต้นด้วย "ผู้นำบุญ" (พร้อมชื่อและคอร์ส) | แสดงกล่องถาม ตกลง/ยกเลิก ถ้ากด "ตกลง" ไป `backend/approval_start.php?name=&course=&type=` (ไม่ส่งอัตโนมัติ) |
-| ประเภท "ผู้นำบุญ..." หรือไม่มี `type` | แสดง "ขอบคุณ คุณ[ชื่อ]" + หลักสูตร (ใส่ด้วย `textContent` ป้องกัน XSS และจำกัดความยาว) |
-| มี `?ref=JF-...` (ส่งกลับมาหลังส่งคำขอ) | เรียก `backend/approval_result.php` แล้วแสดง "ส่งคำขออนุมัติถึงหัวหน้ากองแล้ว" + ชื่อหัวหน้ากอง (หรือสถานะอนุมัติ/ไม่อนุมัติ) |
-| มี `?e=<code>` (ส่งไม่สำเร็จ) | แสดงข้อความตามรหัส `missing`/`cas`/`upstream`/`dup`/`login`/`db` + ปุ่ม "ลองส่งใหม่" (ชี้ `backend/approval_submit.php` ตายตัว ไม่รับลิงก์จาก URL) |
+| `Dockerfile` | `php:8.2-apache` + `pdo_pgsql`, คัดลอกโค้ดเข้า `/var/www/html`, ให้ Apache ฟังพอร์ต `PORT` ที่ Render กำหนด |
+| `index.html` | markup ของหน้าดาวน์โหลดใบประกาศ + Admin Panel (3 แท็บ: ดาวน์โหลด / จัดการข้อมูล / คำขออนุมัติ) ไม่มี CSS/JS ฝัง |
+| `thankyou.html` | หน้า Thank you ตามเงื่อนไขใน §3.3 |
+| `assets/js/certificate.js` | โหลดข้อมูลจาก `api.php`, dropdown ปี/คอร์ส/ชื่อ, พรีวิว, QR, ดาวน์โหลด PNG |
+| `assets/js/auth.js` | modal ล็อกอิน/ออกจากระบบแอดมิน, เก็บสถานะใน `sessionStorage`, แสดง/ซ่อนแท็บแอดมิน |
+| `assets/js/admin.js` | ตรรกะแอดมินทั้งหมด: ตารางคอร์ส/ผู้เรียน, modal เพิ่ม-แก้ไข, เปิดรับสมัคร, นำเข้า Airtable, แท็บคำขออนุมัติ (`loadApprovalsPage`, `fetchApprovals`, `formatThaiDateTime`) |
+| `assets/css/style.css` | สไตล์ทั้งหมดของ `index.html` |
 
-
-### `assets/css/style.css`
-สไตล์ทั้งหมดของเว็บ (สี, layout, responsive, animation) แยกออกจาก `index.html` เพื่อให้แก้ไขและอ่านง่ายขึ้น
-
-### `assets/js/certificate.js`
-ตรรกะหน้าดาวน์โหลดใบประกาศ: โหลดรายชื่อจาก `api.php`, สร้าง dropdown เลือกปี/หลักสูตร/ชื่อ, อัปเดตพรีวิวใบประกาศแบบ real-time, สร้าง QR Code, และแปลงใบประกาศเป็นไฟล์ PNG ผ่าน html2canvas
-
-### `assets/js/auth.js`
-ระบบ login/logout admin ฝั่ง frontend: เปิด/ปิด modal login, เรียก `backend/auth.php`, เก็บสถานะ session ไว้ใน `sessionStorage`, และแสดง/ซ่อนแท็บ admin ตามสถานะ
-
-### `assets/js/admin.js`
-ตรรกะหน้า Admin Panel ทั้งหมด: สลับแท็บ (ดาวน์โหลด / จัดการข้อมูล / **คำขออนุมัติ** — `loadApprovalsPage()`, `fetchApprovals()` มีสรุปจำนวนกรองสถานะได้ ค้นหาแบบ debounce แบ่งหน้าละ 20 และแปลงเวลา UTC เป็นเวลาไทย), ตารางคอร์ส (ค้นหา/กรอง/เรียงลำดับ), ตารางรายชื่อผู้เรียน (ค้นหา/กรอง/เรียงลำดับ/แบ่งหน้า), modal เพิ่ม/แก้ไขข้อมูล, หน้าเปิดรับสมัคร (**แสดงชื่อคอร์สแบบยาว `long_key` เป็นหลัก + ชื่อย่อ `short_name` กำกับไว้ด้านล่างตัวเล็ก**) + ปุ่ม Sync to JotForm และหน้านำเข้าข้อมูลจาก Airtable (แสดงผลแบบกลุ่มคอร์ส)
-
-### `backend/lib/load_env.php`
-โหลดไฟล์ `.env` เข้า environment อัตโนมัติตอนรันบนเครื่อง local — ทุก endpoint `require_once` ไฟล์นี้ไว้บนสุด บน Render ไม่มีไฟล์ `.env` ก็ข้ามไปเลยโดยไม่มีผลอะไร ออกแบบมาให้ใช้งานได้ทั้งสองสภาพแวดล้อมโดยไม่ต้องแก้โค้ด
-
-### `backend/lib/require_admin.php`
-Middleware กลาง — เริ่ม session, ตั้ง response header เป็น JSON, เช็คว่า login เป็น admin อยู่ไหม ถ้าไม่ใช่ตอบ 403 ทันที ทุกไฟล์ endpoint ที่ต้องการสิทธิ์ admin (`admin_api.php`, `active_courses.php`) เรียกใช้ไฟล์นี้แค่บรรทัดเดียวแทนเขียนโค้ดเช็คซ้ำ
-
-### `backend/lib/error_handler.php`
-ฟังก์ชันกลาง `send_error_response()` — log รายละเอียด exception จริงไว้ฝั่ง server ผ่าน `error_log()` (ดูได้ที่ Render → Logs) แต่ส่งข้อความทั่วไปกลับไปหา client เท่านั้น ป้องกันไม่ให้รายละเอียดโครงสร้าง database รั่วไหลออกไป
-
-### `backend/lib/AirtableClient.php`
-ตัวเชื่อมต่อ Airtable REST API — ดึง records ทั้งหมดจาก table ที่กำหนด วน pagination อัตโนมัติ (Airtable จำกัด 100 แถวต่อ request) อ่าน credential จาก environment variables
-
-### `backend/lib/CourseRepository.php`
-รวม SQL ทั้งหมดที่เกี่ยวกับตาราง `courses` และ `active_courses` ไว้ที่เดียว — endpoint files เรียกใช้ผ่าน class นี้แทนเขียน SQL เอง เมธอดหลัก:
-
-| เมธอด | หน้าที่ |
+### Backend — endpoint
+| ไฟล์ | หน้าที่ |
 |---|---|
-| `listWithStudentCount()` | ดึงคอร์สทั้งหมดพร้อมนับจำนวนผู้เรียน (หน้า "คอร์สทั้งหมด") |
-| `listWithActiveFlag()` | ดึงคอร์สทั้งหมดพร้อม flag เปิด/ปิดรับสมัคร **คืนค่าทั้ง `short_name` และ `long_key`** (หน้า "เปิดรับสมัคร") |
-| `listActiveLongKeys()` | ดึง**ชื่อยาว**ของคอร์สที่เปิดรับสมัครอยู่ทั้งหมด ใช้ตอน sync ไป JotForm *(เดิมชื่อ `listActiveShortNames()` — เปลี่ยนให้ sync เป็นชื่อยาวแทนชื่อย่อ)* |
-| `findByShortName()` | ค้นหาคอร์สจากชื่อย่อแบบตรงเป๊ะ |
-| `findByShortNameOrLongKey()` | ค้นหาคอร์สจากชื่อ โดยเทียบได้ทั้ง `short_name` และ `long_key` — ใช้ในหน้านำเข้า Airtable และใน `jotform_webhook.php` (กันเคส dropdown ใน JotForm เปลี่ยนไปมาระหว่างชื่อสั้น/ยาว) |
-| `add()` / `update()` / `delete()` | จัดการหลักสูตร |
-| `activate()` / `deactivate()` | เปิด/ปิดรับสมัครคอร์ส |
+| `api.php` | สาธารณะ: คืนรายชื่อผู้เรียนทั้งหมดพร้อมคอร์สผ่าน `StudentRepository::listAllWithCourse()` |
+| `auth.php` | `action=login/logout/check` ตั้ง `$_SESSION['is_admin']` |
+| `admin_api.php` | แอดมินเท่านั้น (ผ่าน `require_admin.php`) ดูตาราง action ใน §7 |
+| `active_courses.php` | แอดมินเท่านั้น: `list`, `toggle`, `sync_jotform` (ส่งชื่อยาวของคอร์สที่เปิดไป JotForm API) — เก็บไว้เผื่ออนาคต |
+| `jotform_webhook.php` | สาธารณะ (JotForm เรียก): แกะ `rawRequest` → หา course → insert `students` |
+| `approval_start.php` | รับ `name/course/type` → สร้าง `ref` → เก็บ session → ไป `oauth_login.php` หรือ `approval_submit.php` |
+| `oauth_login.php` | สร้าง `state` แล้ว redirect ไป `/oauth/authorize` |
+| `oauth_callback.php` | ตรวจ state, แลก token, ดึง username, เก็บ session → `approval_submit.php` |
+| `approval_submit.php` | ส่ง CAS + บันทึก Neon + redirect กลับ thankyou |
+| `cas_callback.php` | CAS เรียก → ถาม reqstat → อัปเดต Neon → แสดงหน้าผลให้หัวหน้ากอง |
+| `approval_result.php` | สาธารณะ: `?ref=` ต้องตรง `^JF-\d{10,14}-[a-f0-9]{8}$` ตอบ `found`, `status`, `approver_name`, `approver_email`, `approver_position`, `approver_org` (ไม่ส่งข้อมูลผู้สมัคร) |
 
-### `backend/lib/StudentRepository.php`
-รวม SQL ทั้งหมดที่เกี่ยวกับตาราง `students` ไว้ที่เดียว (แบ่งหน้า+ค้นหา+กรอง+เรียงลำดับ, add, update, delete, insert จาก webhook, insert จาก Airtable, ดึงรายชื่อทั้งหมดสำหรับหน้า public)
-
-> หมายเหตุ: `jotform_webhook.php` เปลี่ยนมาเรียก `insertFromAirtable()` แทน `insertFromWebhook()` แล้ว เพราะฟอร์มบริษัทมีฟิลด์ละเอียดกว่าฟอร์มทดลองเดิม (มีคณะ/สาขา/สถาบัน/วันเกิด/ระดับการศึกษาด้วย) — ดูรายละเอียดที่หัวข้อ [การเชื่อมต่อ JotForm ของบริษัท](#การเชื่อมต่อ-jotform-ของบริษัท-dual-write-เข้า-airtable--เว็บใหม่)
-
-### `backend/auth.php`
-ระบบ login ของ admin ใช้ PHP session (`$_SESSION['is_admin']`) อ่าน username/password จาก environment variables (`ADMIN_USER`, `ADMIN_PASS`) — `action=login`, `action=logout`, `action=check`
-
-### `backend/api.php`
-Endpoint สาธารณะ (ไม่ต้อง login) ที่หน้าดาวน์โหลดใบประกาศเรียกใช้ตอนโหลดหน้าเว็บ — ดึงรายชื่อผู้เรียนทั้งหมดผ่าน `StudentRepository::listAllWithCourse()` จัดรูปแบบ JSON คล้าย Airtable เดิม
-
-### `backend/admin_api.php`
-Endpoint หลักสำหรับ CRUD ทั้งหมดในหน้า Admin (ต้อง login ผ่าน `require_admin.php`) เป็น thin controller ที่เรียกใช้ `CourseRepository` และ `StudentRepository`:
-
-| Action | หน้าที่ |
+### Backend — `lib/`
+| ไฟล์ | หน้าที่ |
 |---|---|
-| `list_courses` | ดึงคอร์สทั้งหมด พร้อมนับจำนวนผู้เรียนต่อคอร์ส |
-| `add_course` / `update_course` / `delete_course` | จัดการหลักสูตร |
-| `list_students` | ดึงรายชื่อผู้เรียนแบบแบ่งหน้า รองรับค้นหา/กรองปี/กรองคอร์ส/เรียงลำดับ (whitelist คอลัมน์ป้องกัน SQL Injection ผ่าน `ORDER BY`) |
-| `get_student` | ดึงข้อมูลผู้เรียน 1 คนแบบละเอียด |
-| `add_student` / `update_student` / `delete_student` | จัดการรายชื่อผู้เรียน |
-| `airtable_preview` | ดึงข้อมูลจาก Airtable มา group ตามคอร์ส เปรียบเทียบกับคอร์สในระบบ แยกเป็น "คอร์สใหม่" / "คอร์สที่มีอยู่แล้ว" (query database แค่ครั้งเดียว ไม่ว่าจะมีกี่ record) — ใช้เมนูนี้ดึงทั้งข้อมูลเก่าทั้งหมด และผู้สมัครที่ webhook เคยหาคอร์สไม่เจอมาก่อน |
-| `list_approval_requests` | ดึงรายการคำขออนุมัติจาก Neon (`ApprovalRepository::listPage`) รองรับ `page`, `per_page`, `status`, `q` |
-| `airtable_import_course` | สร้างคอร์สใหม่ (ถ้าจำเป็น) + นำเข้านักเรียนที่เลือกในคอร์สนั้น ในทีเดียวภายใน transaction เดียวกัน |
+| `load_env.php` | โหลด `.env` บนเครื่อง local (บน Render ข้าม) ทุก endpoint `require_once` ไว้บนสุด |
+| `require_admin.php` | middleware: เริ่ม session, ตั้ง header JSON, ตอบ 403 ถ้าไม่ใช่แอดมิน |
+| `error_handler.php` | `send_error_response()` log รายละเอียดฝั่ง server แต่ส่งข้อความทั่วไปให้ client |
+| `AirtableClient.php` | ดึง records ทุกหน้าของ Airtable table ที่กำหนด |
+| `CourseRepository.php` | SQL ของ `courses`/`active_courses`: `listWithStudentCount`, `listWithActiveFlag`, `listActiveLongKeys`, `findByShortName`, `findByShortNameOrLongKey`, `add/update/delete`, `activate/deactivate` |
+| `StudentRepository.php` | SQL ของ `students`: `paginate`, `find`, `add/update/delete`, `insertFromWebhook`, `insertFromAirtable`, `listAllWithCourse`, ตัวช่วยกันนำเข้าซ้ำ |
+| `ApprovalRepository.php` | SQL ของ `approval_requests`: `statusKind`, `find`, `insert` (ON CONFLICT DO NOTHING), `updateStatus`, `findStudentId`, `listPage` |
+| `ApprovalMessage.php` | `ApprovalMessage::build($name,$course)` → `['plain'=>…, 'html'=>…]` |
+| `DkcOAuth.php` | `fromEnv()`, `authorizeUrl($state)`, `exchangeCode($code)`, `fetchUser($token)` (ต้องมี `username`) |
+| `CasClient.php` | `fromEnv()`, `sendRequest(…)`, `fetchStatus($ref)`, `isOk($r)` |
+| `user_session.php` | `user_session_start()`, `dkc_app_url()`, `dkc_redirect()`, `dkc_redirect_thankyou()` (แนบ name/course/type จาก session), `dkc_clip()` |
 
-### `backend/approval_result.php`
-Endpoint **สาธารณะ** (ไม่ต้อง login) สำหรับ `thankyou.html` รับ `?ref=` ที่ต้องตรงรูปแบบ `JF-<เลข 10–14 หลัก>-<hex 8 ตัว>` อ่านจาก Neon แล้วตอบเฉพาะ `found`, `status` (`pending`/`approved`/`rejected`), `approver_name` — **ไม่คืนข้อมูลผู้สมัครเลย** รหัสอ้างอิงสุ่มเดาไม่ได้จึงปลอดภัยพอสำหรับการแสดงผลแบบนี้
-
-### `backend/active_courses.php`
-Endpoint สำหรับหน้า "เปิดรับสมัคร" (ต้อง login) อ่าน JotForm API Key/Form ID/Field ID จาก environment variables — **ปัจจุบันไม่ได้ใช้งานคู่กับฟอร์มบริษัทจริง** (แอดมินเปิด/ปิดคอร์สที่หน้า JotForm โดยตรงแทน) แต่โค้ดยังคงเก็บไว้เผื่อกลับมาใช้ในอนาคต:
-
-| Action | หน้าที่ |
+### Database
+| ไฟล์ | หน้าที่ |
 |---|---|
-| `list` | ดึงคอร์สทั้งหมด พร้อม flag `is_active` |
-| `toggle` | เปิด/ปิดคอร์ส |
-| `sync_jotform` | ดึง**ชื่อยาว** (`long_key`) ของคอร์สที่เปิดอยู่จาก Neon ผ่าน `CourseRepository::listActiveLongKeys()` → เรียก JotForm API โดยตรงเพื่ออัปเดตตัวเลือกใน dropdown |
-
-### `backend/jotform_webhook.php`
-**Endpoint สำคัญที่สุดในระบบ** — จุดเดียวที่ต้องเปิดรับ request จากภายนอกอินเทอร์เน็ตจริง ๆ (ไม่ต้อง login เพราะ JotForm server เป็นคนเรียก)
-
-**รับข้อมูลจากฟอร์มบริษัท `231301336713444`** (ฟอร์มทดลอง `261701468554460` ปัจจุบันใช้ทดสอบระบบขออนุมัติเท่านั้น ไม่ใช่ช่องทางรับสมัครจริง) ทำงานดังนี้:
-
-```
-รับข้อมูลดิบจาก JotForm ผ่าน field 'rawRequest'
-        → แกะฟิลด์ตาม field ID ของฟอร์มบริษัท (ดูตาราง mapping ในหัวข้อถัดไป)
-        → CourseRepository::findByShortNameOrLongKey() หา course_id
-              ├─ เจอ    → StudentRepository::insertFromAirtable() บันทึกเข้า Neon
-              └─ ไม่เจอ → ไม่บันทึก, ตอบ error พร้อมข้อความแนะนำให้ไปที่เมนู
-                          "นำเข้าข้อมูลจาก Airtable" เพื่อเพิ่มคอร์สนี้ก่อน
-        → log ผลลัพธ์ผ่าน error_log() ทุกครั้ง (ทั้งสำเร็จและ error)
-```
-
-> รายละเอียด field mapping ทั้งหมด และการตั้งค่า Webhook integration ฝั่ง JotForm ดูที่หัวขัด [การเชื่อมต่อ JotForm ของบริษัท](#การเชื่อมต่อ-jotform-ของบริษัท-dual-write-เข้า-airtable--เว็บใหม่)
-
-### `database/schema.sql`
-คำสั่งสร้างตารางทั้งหมด เขียนด้วย **PostgreSQL syntax จริง** (`SERIAL`, `REFERENCES ... ON DELETE CASCADE` ฯลฯ) ตรงกับโครงสร้างที่ใช้งานจริงบน Neon
-
-### `database/seed.sql`
-ข้อมูลตัวอย่างสำหรับ demo/ทดสอบระบบ — **ทุกชื่อ/เบอร์/อีเมลเป็นข้อมูลสมมติทั้งหมด** ใช้รันหลัง `schema.sql` เพื่อทดลองใช้งานระบบโดยไม่ต้องพึ่งข้อมูลจริงของบริษัท
-
-### `database/config.php`
-อ่านค่าการเชื่อมต่อ Neon จาก **Environment Variables** (`DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`) ไม่มี credential ฝังอยู่ในโค้ดเลย และมีฟังก์ชัน `getDB()` คืนค่า PDO connection แบบ singleton
+| `database/config.php` | `getDB()` PDO singleton (SSL `require` — ใช้กับ Neon; ถ้าต่อ Postgres local ที่ไม่มี SSL ต้องปรับ `sslmode`) |
+| `database/schema.sql` | สร้างตารางทั้งหมด |
+| `database/approval_requests.sql` | สร้างเฉพาะ `approval_requests` + index |
+| `database/seed.sql` | ข้อมูลตัวอย่างสมมติ |
 
 ---
 
-## โครงสร้างฐานข้อมูล
+## 6. โครงสร้างฐานข้อมูล (Neon)
 
-### ตาราง `courses`
+```
+courses 1 ───────< students            (students.course_id → courses.id, ON DELETE CASCADE)
+courses 1 ──── 0..1 active_courses     (active_courses.course_id → courses.id, ON DELETE CASCADE)
+students 1 ──── 0..* approval_requests (approval_requests.student_id → students.id, ON DELETE SET NULL, ว่างได้)
+```
+
+### `courses`
 | คอลัมน์ | ความหมาย |
 |---|---|
-| `id` | primary key (SERIAL) |
-| `long_key` | ชื่อยาว ต้องไม่ซ้ำกัน (UNIQUE) — ใช้ match กับ field "โปรแกรมที่สมัคร" ใน Airtable **และปัจจุบันเป็นค่าที่แสดง/sync ไปที่ dropdown ของ JotForm ด้วย** |
-| `short_name` | ชื่อย่อ — เดิมใช้ match กับ dropdown ใน JotForm ปัจจุบันใช้เป็นข้อมูลอ้างอิงเสริมในหน้า admin เท่านั้น |
-| `training_date` | วันที่อบรม (ข้อความอิสระ) |
-| `year_be` | ปี พ.ศ. 4 หลัก ใช้กรองข้อมูล |
-| `verify_url` | ลิงก์ปลายทางของ QR Code บนใบประกาศ |
+| `id` | PK (SERIAL) |
+| `long_key` | **ชื่อยาว ห้ามซ้ำ (UNIQUE)** — ชื่อคอร์ส+วันที่อบรม ใช้เทียบกับ dropdown ของ JotForm และ field "โปรแกรมที่สมัคร" ใน Airtable |
+| `short_name` | ชื่อย่อ (อ้างอิงเสริม; webhook เทียบได้ทั้งชื่อย่อและชื่อยาว) |
+| `training_date` | ข้อความวันที่อบรม |
+| `year_be` | ปี พ.ศ. 4 หลัก ใช้กรอง |
+| `verify_url` | ปลายทางของ QR บนใบประกาศ |
+| `created_at` | เวลาสร้าง |
 
-> **หมายเหตุเรื่อง `long_key`:** เป็นข้อความอิสระที่แอดมินกรอกเอง ไม่มีรูปแบบบังคับ บางคอร์สอาจมีชื่อย่อกำกับในวงเล็บ บางคอร์สไม่มี ขึ้นอยู่กับตอนกรอกข้อมูล ไม่กระทบการทำงานของระบบ
+### `students`
+ผู้เรียน 1 แถว = 1 คน ผูกคอร์สด้วย `course_id` (NOT NULL) ฟิลด์: `first_name`, `last_name`, `member_type`, `apply_date`, `birth_date`, `age`, `royal_title`, `education_level`, `faculty`, `major`, `institution`, `department`, `office`, `position`, `phone_internal`, `phone_mobile`, `email`, `head_status`, `attendance`, `last_modified_time`, `airtable_id` (กันนำเข้าซ้ำ; `NULL` ถ้ามาจาก webhook), `created_at`
+> ฟอร์มบริษัทไม่มีช่อง "พรรษา" แยกจาก "อายุ" และไม่มี "สถานะหัวหน้ากอง" สองคอลัมน์นี้จึงเป็น `NULL` จาก webhook
 
-### ตาราง `students`
-เก็บข้อมูลผู้เรียนแต่ละคน ผูกกับหลักสูตรผ่าน `course_id` (Foreign Key, `NOT NULL`, `ON DELETE CASCADE`) มีฟิลด์ข้อมูลส่วนตัวครบถ้วน (ชื่อ, เบอร์, อีเมล, หน่วยงาน, ตำแหน่ง, คณะ, สาขา, สถาบัน, วันเกิด ฯลฯ) และมี `airtable_id` สำหรับกันนำเข้าซ้ำจาก Airtable (ค่าจะเป็น `NULL` สำหรับแถวที่เข้ามาผ่าน webhook โดยตรง)
+### `active_courses`
+junction table เก็บ `course_id` ที่เปิดรับสมัคร (มีแถว = เปิด) ปัจจุบันไม่ได้ผูกกับ JotForm จริงแล้ว
 
-### ตาราง `active_courses`
-ตารางเชื่อม (junction table) เก็บแค่ `course_id` ที่กำลังเปิดรับสมัครอยู่ — ถ้ามีแถวในนี้แปลว่าคอร์สนั้นเปิดรับสมัคร ถ้าไม่มีแปลว่าปิด (ปัจจุบันไม่ได้ผูกกับการเปิด/ปิดจริงบน JotForm ของบริษัทแล้ว เพราะแอดมินไปจัดการที่ JotForm โดยตรง)
+### `approval_requests` (คำขออนุมัติ)
+| คอลัมน์ | ความหมาย |
+|---|---|
+| `external_ref_id` | **PK** รหัส `JF-<epoch ms>-<hex8>` (= `ExternalRefID` ของ CAS) |
+| `requester_ad` | บัญชี AD ผู้ขอ (คนที่ล็อกอิน) |
+| `requester_name` | ชื่อที่แสดงของผู้ขอ |
+| `applicant_name` | ชื่อ-นามสกุลผู้สมัครจากฟอร์ม |
+| `course` | ชื่อคอร์สจากฟอร์ม (เก็บเป็นข้อความ ไม่ผูก FK — เปลี่ยนชื่อคอร์สภายหลังไม่กระทบแถวเก่า) |
+| `member_type` | ประเภทสมาชิกจากฟอร์ม |
+| `student_id` | FK → `students` (best-effort เดาด้วยชื่อ+คอร์ส ว่างได้) |
+| `approve_type` | `1` = อนุมัติโดยหัวหน้ากอง |
+| `subject`, `message` | หัวข้อ/ข้อความ (แบบธรรมดา) ที่ส่งถึงหัวหน้ากอง |
+| `request_key` | `RequestKey` จาก CAS |
+| `approver_ad`, `approver_name` | หัวหน้ากองที่ CAS หาให้ |
+| `status` | `PENDING` / `APPROVE…` / `REJECT…` |
+| `approve_step` | ขั้นอนุมัติจาก CAS |
+| `cas_data` | JSON คำตอบของ CAS ตอนส่งคำขอ (มี `HeadShowEmail`, `Position`, `Organization` ที่หน้า Thank you ใช้แสดง) |
+| `created_at`, `updated_at` | **UTC** (`now() AT TIME ZONE 'UTC'`) |
 
----
-
-## Data Flow แต่ละสถานการณ์
-
-### 1. ผู้เข้าอบรมดาวน์โหลดใบประกาศ
-```
-เปิดเว็บ → certificate.js เรียก api.php → StudentRepository::listAllWithCourse()
-        → เลือกปี/คอร์ส/ชื่อ (กรองฝั่ง frontend) → พรีวิวใบประกาศ real-time
-        → กด "ดาวน์โหลด" → html2canvas แปลงเป็น PNG
-```
-
-### 2. ผู้สมัครใหม่กรอกฟอร์ม JotForm บริษัท (Dual-write)
-```
-[ผู้สมัคร] กรอกฟอร์ม 231301336713444 + เลือกหลักสูตร → กด Submit
-        │
-        ├──→ (integration เดิม) Airtable บริษัท — บันทึกตามปกติ ไม่เปลี่ยนแปลง
-        │
-        └──→ (integration ใหม่) Webhook → jotform_webhook.php
-                   → decode rawRequest, แกะฟิลด์ตาม field id ของฟอร์มบริษัท
-                   → CourseRepository::findByShortNameOrLongKey() หา course_id
-                        ├─ เจอ    → StudentRepository::insertFromAirtable() → ตอบ {ok:true, id:...}
-                        └─ ไม่เจอ → ไม่บันทึก → ตอบ {ok:false, error:"..."} (Airtable ยังบันทึกได้ปกติ)
-```
-รายละเอียดเต็มดูที่หัวข้อ [การเชื่อมต่อ JotForm ของบริษัท](#การเชื่อมต่อ-jotform-ของบริษัท-dual-write-เข้า-airtable--เว็บใหม่)
-
-### 3. Admin เปิด/ปิดคอร์สแล้ว Sync ไปยัง JotForm *(ฟีเจอร์นี้ไม่ได้ใช้กับฟอร์มบริษัทแล้ว — เก็บโค้ดไว้เผื่ออนาคต)*
-```
-[Admin] ติ๊กเปิด/ปิดคอร์ส → admin.js เรียก active_courses.php?action=toggle
-        → CourseRepository::activate()/deactivate()
-[Admin] กด "Sync to JotForm" → active_courses.php?action=sync_jotform
-        → CourseRepository::listActiveLongKeys()   ← ดึงเป็น "ชื่อยาว" แล้ว
-        → รวมชื่อคอร์สด้วย '|' → เรียก JotForm API (POST /form/{id}/question/{field})
-        → JotForm อัปเดตตัวเลือกใน dropdown ของฟอร์มจริง
-```
-> แอดมินปัจจุบันเปิด/ปิดคอร์สโดยเข้าไปแก้ dropdown ที่หน้า JotForm ของบริษัทโดยตรงแทน ไม่ผ่านเมนูนี้
-
-### 4. Admin นำเข้าข้อมูลจาก Airtable (ทั้งของเก่า และรายการที่ webhook หาไม่เจอคอร์ส)
-```
-[Admin] กด "ดึงข้อมูลจาก Airtable"
-        → airtable_preview: AirtableClient::fetchAllRecords() (วน pagination จนครบ)
-        → ดึง courses ทั้งหมดจาก Neon ครั้งเดียว → index เป็น map ใน PHP
-        → group records ตามชื่อคอร์ส → match กับ map → แยก new_courses / existing_courses
-        → แสดงตาราง 2 กลุ่ม พร้อมจำนวนคนที่รอนำเข้า
-
-[Admin] กดปุ่ม "สร้างคอร์ส + นำเข้า" หรือ "นำเข้านักเรียน"
-        → เปิด modal: ถ้าคอร์สใหม่ให้กรอกข้อมูลเพิ่ม, ติ๊กเลือกนักเรียน
-        → airtable_import_course (transaction เดียว):
-           1. สร้างคอร์สใหม่ถ้าจำเป็น (courseRepo::add)
-           2. ดึงข้อมูลจาก Airtable ใหม่อีกครั้ง (verify ฝั่ง server)
-           3. insert นักเรียนที่เลือกไว้ทีละคน (studentRepo::insertFromAirtable)
-        → commit หรือ rollback ถ้าพัง
-```
-> **ใช้เมนูนี้เป็นทางแก้เวลา webhook หาคอร์สไม่เจอ** — เมื่อแอดมินเพิ่มคอร์สใหม่ใน JotForm dropdown ก่อนที่จะมาสร้างคอร์สในเว็บนี้ ผู้สมัครที่เลือกคอร์สนั้นจะยังเข้า Airtable ปกติ แต่ตกหล่นจาก Neon — แอดมินมาสร้างคอร์สให้ตรงชื่อ แล้วกดดึงข้อมูลจาก Airtable มานำเข้าย้อนหลังได้จากเมนูนี้
-
-### 5. ผู้สมัครขออนุมัติจากหัวหน้ากองอัตโนมัติ
-```
-[ผู้สมัคร] กรอกฟอร์ม JotForm → Submit (ข้อมูลเข้า Airtable + Neon ตามข้อ 2)
-        → JotForm redirect → thankyou.html?name=&course=&type=
-              ├─ ประเภท "ผู้นำบุญ..." → แสดง "ขอบคุณ คุณ[ชื่อ]" (จบ)
-              └─ ประเภทอื่น → (ผู้ใช้กด "ตกลง") → backend/approval_start.php?name=&course=&type=
-                     → สร้างรหัส JF-<เวลา>-<hex8> เก็บใน session ฝั่ง server
-                     → (ยังไม่ล็อกอิน) oauth_login.php → DKC OAuth → oauth_callback.php (ตรวจ state, แลก token, อ่าน username)
-                     → approval_submit.php ส่งคำขอไป CAS (ผู้ขอ = บัญชี AD ที่ล็อกอิน, CAS หาหัวหน้ากองเอง)
-                     → บันทึกลง Neon (เฉพาะเมื่อ CAS รับสำเร็จ)
-                     → redirect → thankyou.html?ref=JF-...  (หรือ ?ref=...&e=<code> ถ้าไม่สำเร็จ)
-        → thankyou.html เรียก approval_result.php → แสดงชื่อหัวหน้ากอง/สถานะ
-
-[หัวหน้ากอง] กดอนุมัติ/ปฏิเสธในระบบ CAS → CAS เรียก backend/cas_callback.php
-        → ถาม CAS ซ้ำ (reqstat) เพื่อยืนยันสถานะจริง → อัปเดต Neon → แท็บ "คำขออนุมัติ" เห็นสถานะใหม่
-
-[แอดมิน] เปิดแท็บ "คำขออนุมัติ" → admin_api.php?action=list_approval_requests → Neon
-```
-รายละเอียดเต็มดูที่หัวข้อ [ระบบขออนุมัติ](#ระบบขออนุมัติ-cas--ล็อกอิน-dkc--หน้า-thank-you--แท็บแอดมิน)
+Index: `requester_ad`, `created_at DESC`, `status`, `student_id`
 
 ---
 
-## การเชื่อมต่อ JotForm ของบริษัท (Dual-write เข้า Airtable + เว็บใหม่)
+## 7. รายการ Endpoint ทั้งหมด
 
-### ภาพรวม
+| Endpoint | ใครเรียก | ต้องล็อกอิน | หน้าที่ |
+|---|---|---|---|
+| `GET backend/api.php` | หน้าแรก | ไม่ | รายชื่อผู้เรียนทั้งหมด |
+| `POST backend/auth.php` | หน้าแรก | — | login/logout/check แอดมิน |
+| `* backend/admin_api.php?action=…` | Admin Panel | **แอดมิน** | ดูตารางด้านล่าง |
+| `* backend/active_courses.php` | Admin Panel | **แอดมิน** | เปิด/ปิดรับสมัคร, sync JotForm (ไม่ใช้จริง) |
+| `POST backend/jotform_webhook.php` | **JotForm** | ไม่ (สาธารณะ) | บันทึกผู้สมัครลง Neon |
+| `GET backend/approval_start.php?name&course&type` | thankyou.html (ปุ่มตกลง) | ไม่ | เริ่มขออนุมัติ |
+| `GET backend/oauth_login.php` | approval_start | ไม่ | ไป DKC OAuth |
+| `GET backend/oauth_callback.php` | **DKC OAuth** | ไม่ | รับ code (redirect_uri) |
+| `GET backend/approval_submit.php` | oauth_callback / ปุ่มลองใหม่ | ต้องมี session DKC | ส่งคำขอ CAS |
+| `GET backend/cas_callback.php?ExternalRefID=` | **CAS** | ไม่ | รับผลอนุมัติ (ถามซ้ำก่อนเชื่อ) |
+| `GET backend/approval_result.php?ref=` | thankyou.html | ไม่ (ต้องรู้ ref) | สถานะ + ข้อมูลหัวหน้ากอง |
 
-ระบบเดิมของบริษัทใช้ JotForm (`231301336713444`) ส่งข้อมูลเข้า Airtable (`appI37LT5wFrI4ITA`) อย่างเดียว ระบบใหม่ **เพิ่ม Webhook เข้าไปเสริมคู่ขนาน** โดยไม่แตะ Airtable integration เดิมเลย ทำให้พอมีคนกด Submit ฟอร์ม ข้อมูลจะเข้าทั้ง 2 ที่พร้อมกันอัตโนมัติ:
+**Action ของ `admin_api.php`**
+| Action | หน้าที่ |
+|---|---|
+| `list_courses` | คอร์สทั้งหมด + จำนวนผู้เรียน |
+| `add_course` / `update_course` / `delete_course` | จัดการหลักสูตร |
+| `list_students` | ผู้เรียนแบบแบ่งหน้า (ค้นหา/กรองปี/คอร์ส/เรียง) |
+| `get_student` / `add_student` / `update_student` / `delete_student` | จัดการผู้เรียน |
+| `airtable_preview` | ดึง Airtable จัดกลุ่มตามคอร์ส เทียบกับ Neon |
+| `airtable_import_course` | สร้างคอร์ส (ถ้าจำเป็น) + นำเข้านักเรียนที่เลือก ใน transaction เดียว |
+| `list_approval_requests` | รายการคำขอ + สรุป (`page`, `per_page`, `status`, `q`) |
 
-```
-[คนกรอกฟอร์ม] → JotForm 231301336713444
-                     ├──→ Airtable appI37LT5wFrI4ITA  (integration เดิม ไม่เปลี่ยนแปลง)
-                     └──→ Webhook → jotform_webhook.php → Neon (integration ใหม่)
-```
+---
 
-### วิธีตั้งค่า Webhook ฝั่ง JotForm
+## 8. การตั้งค่าระบบภายนอก (JotForm / DKC OAuth+CAS / Airtable)
 
-1. เข้า https://www.jotform.com/ → login ด้วยบัญชีที่เข้าถึงฟอร์มบริษัทได้
-2. เปิดฟอร์ม `231301336713444` → แท็บ **Settings → Integrations**
-3. ตรวจสอบว่า **Airtable** integration เดิมยังอยู่ (ไม่แตะต้อง)
-4. ค้นหา **"Webhooks"** → เพิ่ม URL ปลายทาง:
-   ```
-   https://comtrain-webcertificate.onrender.com/backend/jotform_webhook.php
-   ```
-5. Save — ควรเห็น 2 integrations พร้อมกัน (Airtable + Webhooks)
+### 8.1 JotForm ฟอร์มบริษัท (`231301336713444`)
 
-### Field Mapping ของฟอร์มบริษัท (231301336713444)
+#### (ก) Webhook → บันทึกลง Neon
+1. JotForm → เปิดฟอร์ม → **Settings → Integrations**
+2. ตรวจว่า **Airtable** integration เดิมยังอยู่ (ห้ามแตะ)
+3. เพิ่ม **Webhooks** ปลายทาง: `https://comtrain-webcertificate.onrender.com/backend/jotform_webhook.php`
+4. ต้องเห็น 2 integrations พร้อมกัน (Airtable + Webhooks)
 
-| ข้อมูล | field id | JotForm key ที่ส่งมาใน `rawRequest` |
+#### (ข) Field mapping (ที่ `jotform_webhook.php` ใช้แกะ `rawRequest`)
+| ข้อมูล | field id | key ใน `rawRequest` |
 |---|---|---|
 | ชื่อ | 110 | `q110_typeA110` |
 | นามสกุล (ฉายา) | 111 | `q111_input111` |
@@ -431,255 +562,232 @@ Endpoint สำหรับหน้า "เปิดรับสมัคร" (
 | สังกัดหน่วยงาน/กอง/ศูนย์ | 31 | `q31_typeA31` |
 | สำนัก | 32 | `q32_input59` |
 | ตำแหน่ง | 33 | `q33_typeA33` |
-| เบอร์ภายใน | 38 | `q38_input38['full']` ⚠️ เป็น array (`control_phone`) ต้องดึง `['full']` |
+| เบอร์ภายใน | 38 | `q38_input38['full']` ⚠️ เป็น array (`control_phone`) |
 | เบอร์มือถือ | 39 | `q39_phoneNumber['full']` |
 | Email | 82 | `q82_email82` |
-| วันเกิด | 98 | `q98_input98` (object: year/month/day) |
+| วันเกิด | 98 | `q98_input98` (object year/month/day) |
 | **โปรแกรมที่ต้องการสมัครเรียน (dropdown คอร์ส)** | 93 | `q93_input93` |
-| วันที่ส่งแบบฟอร์ม | 9 | `q9_date` (object: year/month/day) |
+| วันที่ส่งแบบฟอร์ม | 9 | `q9_date` (object) |
 | ค่าสมัครอบรม | 104 | `q104_input104` |
 
-> ฟอร์มนี้ไม่มีช่อง "พรรษาที่" แยกจาก "อายุ" (รวมเป็นช่องเดียว) และไม่มีช่อง "สถานะหัวหน้ากอง" — ทั้งสองปล่อยเป็น `NULL` ในตาราง `students`
+> ถ้า field id เปลี่ยน (เช่น โคลนฟอร์ม) ต้องแก้ใน `jotform_webhook.php` ดึง id จริงได้จาก `GET https://api.jotform.com/form/{formId}/questions?apiKey=...`
 
-### การตั้งค่า Thank You Page (เชื่อมกับระบบขออนุมัติ)
-
-ตั้งที่ฟอร์ม → **Settings → Thank You Page → Redirect to an external link after submission** ใส่ URL เดียว:
-
+#### (ค) Thank You Page → เชื่อมกับหน้า Thank you ของเรา
+**Settings → Thank You Page → Redirect to an external link after submission** ใส่ URL:
 ```
 https://comtrain-webcertificate.onrender.com/thankyou.html?name={typeA110}%20{input111}&course={input93}&type={typeA}
 ```
+- ตัวแปรในปีกกาคือ **Unique Name** ของฟิลด์: `typeA110` (ชื่อ), `input111` (นามสกุล), `input93` (คอร์ส), `typeA` (ประเภทสมาชิก) — ต้องตรวจให้ตรงกับฟอร์มที่ใช้ (Properties → Advanced → Unique Name)
+- `%20` = ช่องว่างระหว่างชื่อกับนามสกุล
+- **ไม่ต้องใช้ Conditions** (ถ้าเคยตั้ง "Change Thank You page" ให้ลบ มิฉะนั้นผู้สมัครจะข้ามหน้านี้)
+- **ปิด "Send Post Data / Redirect with HTTP POST"** (ถ้าเปิด JotForm จะส่งแบบ POST ซึ่ง `thankyou.html` เป็นไฟล์สถิตรับไม่ได้)
+- ประเภทสมาชิกที่ **ไม่ต้องขออนุมัติ** ต้องขึ้นต้นด้วยคำว่า "ผู้นำบุญ" (เช่น "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ") — ถ้าเปลี่ยนข้อความตัวเลือกในฟอร์ม ต้องแก้เงื่อนไขใน `thankyou.html` ด้วย
+- ตั้ง/แก้ตอนไม่มีคนกรอกอยู่ และทดสอบ 2 กรณี: ประเภทผู้นำบุญ และประเภทอื่น
 
-- ตัวแปรในปีกกาคือ **Unique Name** ของฟิลด์: `typeA110` (ชื่อ), `input111` (นามสกุล), `input93` (คอร์ส), `typeA` (ประเภทสมาชิก) — ต้องตรวจให้ตรงกับฟอร์มที่ใช้ (ดูได้ที่ Properties → Advanced ของแต่ละฟิลด์)
-- `%20` ระหว่างชื่อกับนามสกุลคือช่องว่าง
-- **ไม่ต้องใช้ Conditions** — การแยกประเภทที่ต้องขออนุมัติทำในโค้ดของ `thankyou.html` แล้ว (ถ้าเคยตั้งเงื่อนไข "Change Thank You page" ไว้ ให้ลบออก ไม่เช่นนั้นผู้สมัครจะข้ามหน้านี้)
-- สวิตช์ "Redirect with HTTP POST" ให้ปิดไว้
-- ควรตั้ง/แก้ตอนไม่มีคนกรอกฟอร์มอยู่ และทดสอบ 2 กรณี: ประเภท "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" และประเภทอื่น
+> ⚠️ ถ้าโคลนฟอร์มมาทดสอบ ให้ลบ Integrations (Airtable/Webhook) ที่ติดมาก่อน มิฉะนั้นข้อมูลทดสอบจะไหลเข้าระบบจริง
 
-> ⚠️ ถ้าโคลนฟอร์มมาทดสอบ ให้ลบ Integrations (Airtable/Webhook) ที่ติดมาด้วยก่อน มิฉะนั้นข้อมูลทดสอบจะไหลเข้าระบบจริง
+> **ข้อมูลที่ JotForm ส่งเมื่อเปิด "Send Post Data"** (ทดสอบแล้ว ไม่ได้ใช้ในระบบปัจจุบัน): มี `submission_id`, `formID`, และค่าฟิลด์เกือบทั้งหมด แต่ **ไม่มีลิงก์/hash ของไฟล์ PDF** ดูเหตุผลที่ §14
 
-### พฤติกรรมเมื่อหาคอร์สไม่เจอ
+#### (ง) ฟอร์มทดลอง `261701468554460`
+ใช้ทดสอบระบบขออนุมัติ มีคอร์สทดสอบ `TEST-ระบบขออนุมัติ` ใน dropdown และใน Neon ต้องถอด Webhook/Integration ออกหรือลบคอร์ส/ข้อมูลทดสอบก่อนปิดงาน (ดู §17)
 
-ผู้สมัครจะ**ไม่เห็น error ใด ๆ**เลยครับ (JotForm แสดงหน้า Thank you ปกติเสมอ ไม่ว่า webhook ปลายทางจะสำเร็จหรือไม่) และ **Airtable บันทึกได้ปกติเสมอ** เพราะเป็น integration อิสระจาก webhook
+### 8.2 DKC OAuth + CAS (ต้องประสานทีม IT ของ DKC)
 
-ฝั่งเว็บนี้จะไม่สร้างคอร์สใหม่อัตโนมัติ (ตัดสินใจไว้แล้วว่าให้ข้อมูลคอร์สสะอาดสมบูรณ์เสมอ ดีกว่า auto-create แล้วต้องมาเก็บงานทีหลัง) แต่จะ:
-1. ไม่บันทึกข้อมูลผู้สมัครคนนั้นลง Neon
-2. Log ข้อความ error ไว้ (ดูได้ 2 ที่ — ดูหัวข้อถัดไป)
-3. ตอบกลับ JotForm ด้วยข้อความแนะนำให้แอดมินไปที่เมนู "นำเข้าข้อมูลจาก Airtable" เพื่อเพิ่มคอร์สนั้นเข้าระบบ แล้วดึงข้อมูลย้อนหลังมาได้
-
-### วิธีเช็คว่ามีเคสหาคอร์สไม่เจอไหม
-
-**ที่ 1 — Render Logs:** Dashboard → service → แท็บ Logs → ค้นหา `jotform_webhook`
-- `[jotform_webhook] OK: ...` = บันทึกสำเร็จ
-- `[jotform_webhook] ERROR: ไม่พบคอร์สชื่อ '...' ในระบบ` = ตกหล่น ต้องไปสร้างคอร์สแล้วนำเข้าย้อนหลัง
-
-**ที่ 2 — JotForm เอง:** เปิดฟอร์ม → Settings → Integrations → Webhooks → ดู Log/History ของ integration นี้โดยเฉพาะ (กรองมาแล้วเฉพาะ webhook นี้ ไม่ปนกับ log อื่นของเว็บ)
-
----
-
-## ระบบขออนุมัติ (CAS) — ล็อกอิน DKC + หน้า Thank you + แท็บแอดมิน
-
-### หลักการ
-- ผู้สมัครที่เลือกประเภทสมาชิกอื่นนอกจาก "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" **ทุกคนมีบัญชี AD และมีกอง** จึงส่งคำขออนุมัติถึงหัวหน้ากองของตนผ่านระบบ CAS ของ DKC ได้
-- ระบบ **ไม่ส่งชื่อหัวหน้ากองไปเอง** — ส่งเฉพาะบัญชีผู้ขอ แล้ว CAS หาหัวหน้ากองให้ (คืนมาที่ `ADApprover` / `HeadFullName`) ส่งถึงหัวหน้ากองคนเดียวเท่านั้น
-- การอนุมัติเป็น **การติดตามสถานะเท่านั้น** ไม่มีผลต่อการสมัคร การบันทึกลง Neon หรือการออกใบประกาศ
-- ข้อความถึงหัวหน้ากองสร้างอัตโนมัติ แก้โดยผู้ขอไม่ได้: หัวข้อ `ขออนุมัติสมัครอบรม: [คอร์ส]` และข้อความ `ขออนุมัติให้ [ชื่อ นามสกุล] เข้าอบรมหลักสูตร [คอร์ส]`
-- `ApproveType` ตั้งไว้ที่ 1 (อนุมัติโดยหัวหน้ากอง) หากต้องเปลี่ยนเป็น 2 แก้ที่ `backend/approval_submit.php`
-
-### Endpoint ที่เกี่ยวข้อง (ในเว็บใบประกาศ)
-
-| ไฟล์ | หน้าที่ |
-|---|---|
-| `backend/approval_start.php` | รับ `?name=&course=&type=` (ตัด 100/200/100 ตัวอักษร) สร้างรหัส `JF-...` เก็บใน session แล้วไปล็อกอิน (หรือส่งคำขอทันทีถ้าล็อกอินอยู่แล้ว) |
-| `backend/oauth_login.php` | สร้าง `state` สุ่ม แล้ว redirect ไป `/oauth/authorize` |
-| `backend/oauth_callback.php` | **คือ redirect_uri** — ตรวจ `state`, แลก `code` เป็น token, อ่าน `username` (บัญชี AD) เก็บใน session (ไม่เก็บ token) |
-| `backend/approval_submit.php` | ส่ง `POST /api/cas/request` แล้วบันทึก Neon; ส่งซ้ำด้วยรหัสเดิมไม่ได้ (ปุ่ม "ลองส่งใหม่" เรียกไฟล์นี้) |
-| `backend/cas_callback.php` | **คือ CallbackURL ของ CAS** (GET, ไม่ต้องล็อกอิน) ถาม `reqstat` ซ้ำแล้วอัปเดต Neon ไม่เชื่อสถานะใน query string |
-| `backend/approval_result.php` | ตอบสถานะ + ชื่อหัวหน้ากองให้ thankyou.html (อ่านจาก Neon) |
-| `backend/lib/DkcOAuth.php`, `CasClient.php`, `ApprovalRepository.php`, `user_session.php` | ตัวช่วย OAuth / CAS / ตาราง Neon / session ผู้ใช้ (ชื่อคุกกี้ `DKCUSER` แยกจาก session แอดมิน) |
-
-- `ApproveType` ตั้งไว้ที่ 1 ใน `approval_submit.php`
-- รหัสอ้างอิง `JF-<epoch ms>-<hex 8 ตัว>` ใช้เป็น `ExternalRefID` ของ CAS และเป็น primary key ของ `approval_requests`
-- ตาราง `approval_requests` สร้างด้วย `database/approval_requests.sql` (รันครั้งเดียวใน Neon SQL Editor) เก็บเวลาเป็น UTC
-- ต้องแจ้งทีม IT ให้ลงทะเบียน redirect_uri `https://comtrain-webcertificate.onrender.com/backend/oauth_callback.php` (ต้องตรงทุกตัวอักษร) และยืนยันว่า CAS รับ CallbackURL `https://comtrain-webcertificate.onrender.com/backend/cas_callback.php`
-
-### ฝั่งหน้าเว็บ
-- **หน้า Thank you** (`thankyou.html`) — ดูหัวข้อไฟล์ด้านบน
-- **แท็บ "คำขออนุมัติ"** — `admin.js (fetchApprovals)` → `backend/admin_api.php?action=list_approval_requests` → `ApprovalRepository::listPage()` (Neon) คอลัมน์: วันที่ขอ, ผู้สมัคร, คอร์ส, ประเภท, ผู้ขอ (AD), หัวหน้ากอง, สถานะ, อัปเดตล่าสุด
-
-### รหัสผิดพลาดบนหน้า Thank you (`e`)
-| รหัส | ความหมาย |
-|---|---|
-| `missing` | ชื่อ/คอร์ส/ประเภทไม่ครบ |
-| `cas` | CAS ไม่รับคำขอ (เช่น หาหัวหน้ากองไม่พบ) — รายละเอียดดูใน Cloudflare Logs |
-| `upstream` | CAS ไม่ตอบ/ตอบผิดรูปแบบ |
-| `dup` | `ref` นี้ถูกใช้โดยผู้ใช้คนอื่นแล้ว |
-
----
-
-## วิธีรันโปรเจกต์บนเครื่องตัวเอง (Local Setup)
-
-1. **เตรียม PostgreSQL database** — ใช้ [Neon](https://neon.tech) (ฟรี) หรือ Postgres ที่ติดตั้งเองก็ได้
-
-2. **สร้างตารางและข้อมูลตัวอย่าง**
-   ```bash
-   psql "postgresql://<user>:<pass>@<host>/<dbname>" -f database/schema.sql
-   psql "postgresql://<user>:<pass>@<host>/<dbname>" -f database/seed.sql
-   ```
-
-3. **สร้างไฟล์ `.env`** ที่ root ของโปรเจกต์ (ดูรายการตัวแปรทั้งหมดที่หัวข้อถัดไป):
-   ```env
-   ADMIN_USER=admin
-   ADMIN_PASS=your_password
-
-   DB_HOST=your-neon-host
-   DB_PORT=5432
-   DB_NAME=neondb
-   DB_USER=neondb_owner
-   DB_PASS=your_db_password
-
-   APP_URL=https://comtrain-webcertificate.onrender.com
-   OAUTH_BASE_URI=https://oauth.dhammakaya.network
-   OAUTH_CLIENT_ID=your_client_id
-   OAUTH_CLIENT_SECRET=your_client_secret
-   OAUTH_REDIRECT_URI=https://comtrain-webcertificate.onrender.com/backend/oauth_callback.php
-
-   AIRTABLE_API_KEY=your_airtable_key
-   AIRTABLE_BASE_ID=your_base_id
-   AIRTABLE_TABLE_ID=your_table_id
-
-   JOTFORM_API_KEY=your_jotform_key
-   JOTFORM_FORM_ID=your_form_id
-   JOTFORM_FIELD_ID=your_field_id
-   ```
-
-4. **ตรวจสอบ PHP extension**
-   ```bash
-   php -m | findstr pgsql
-   ```
-   ต้องเห็น `pdo_pgsql` และ `pgsql` — ถ้าไม่เจอให้เปิดใน `php.ini`
-
-5. **แก้ไข `php.ini` สำหรับ SSL** (Windows เท่านั้น) — ดาวน์โหลด `cacert.pem` จาก [curl.se/ca/cacert.pem](https://curl.se/ca/cacert.pem) แล้วตั้งค่า:
-   ```ini
-   curl.cainfo = "C:\php\cacert.pem"
-   openssl.cafile = "C:\php\cacert.pem"
-   ```
-
-6. **รันเว็บด้วย PHP built-in server**
-   ```bash
-   php -S localhost:8000
-   ```
-   เปิด `http://localhost:8000`
-
-7. **(ทางเลือก) รันผ่าน Docker เหมือนบน Render**
-   ```bash
-   docker build -t webcertificate .
-   docker run -p 8080:10000 -e PORT=10000 --env-file .env webcertificate
-   ```
-
-> หมายเหตุ: ฟีเจอร์ที่พึ่งพา JotForm (`active_courses.php?action=sync_jotform`, `jotform_webhook.php`) จะทำงานได้เต็มรูปแบบก็ต่อเมื่อตั้งค่า `JOTFORM_API_KEY`/`JOTFORM_FORM_ID`/`JOTFORM_FIELD_ID` ให้ตรงกับฟอร์มจริงของคุณเองด้วย และต้อง map field id ให้ตรงกับฟอร์มที่ใช้จริง (ดูตาราง mapping ในหัวข้อ [การเชื่อมต่อ JotForm ของบริษัท](#การเชื่อมต่อ-jotform-ของบริษัท-dual-write-เข้า-airtable--เว็บใหม่))
-
----
-
-## Environment Variables ที่ต้องตั้งค่า
-
-| ตัวแปร | คำอธิบาย | ใช้ในไฟล์ |
+| รายการ | ค่า | หมายเหตุ |
 |---|---|---|
-| `DB_HOST` | Host ของ Neon database | `database/config.php` |
-| `DB_PORT` | Port (ปกติ `5432`) | `database/config.php` |
-| `DB_NAME` | ชื่อ database | `database/config.php` |
-| `DB_USER` | Username | `database/config.php` |
-| `DB_PASS` | Password | `database/config.php` |
-| `ADMIN_USER` | Username สำหรับ login admin | `backend/auth.php` |
-| `ADMIN_PASS` | Password สำหรับ login admin | `backend/auth.php` |
-| `APP_URL` | URL เว็บนี้ (ใช้ประกอบ CallbackURL ของ CAS) | `backend/lib/user_session.php` |
-| `OAUTH_BASE_URI` | ที่อยู่ DKC OAuth (`https://oauth.dhammakaya.network`) | `backend/lib/DkcOAuth.php`, `CasClient.php` |
-| `OAUTH_CLIENT_ID` / `OAUTH_CLIENT_SECRET` | ได้จากทีม IT (Secret) ใช้ทั้งล็อกอินและ CAS | `DkcOAuth.php`, `CasClient.php` |
-| `OAUTH_REDIRECT_URI` | `https://comtrain-webcertificate.onrender.com/backend/oauth_callback.php` ต้องตรงกับที่ลงทะเบียนไว้ | `DkcOAuth.php` |
-| `CAS_CLIENT_ID` / `CAS_CLIENT_SECRET` | (ไม่บังคับ) ถ้า CAS ใช้คีย์คนละชุดกับล็อกอิน | `CasClient.php` |
-| `CAS_MSG_HTML` | (ไม่บังคับ) ตั้งเป็น `1` เพื่อส่งข้อความถึงหัวหน้ากองเป็น HTML (หัวข้อ + ตาราง ผู้สมัคร/หลักสูตร) ถ้าไม่ตั้งหรือตั้งอย่างอื่น = ข้อความธรรมดา ค่าที่ผู้ใช้กรอกถูก escape เสมอ | `backend/approval_submit.php` |
-| `AIRTABLE_API_KEY` | Personal Access Token จาก Airtable | `backend/admin_api.php` |
-| `AIRTABLE_BASE_ID` | Base ID ของ Airtable (ขึ้นต้นด้วย `app`) | `backend/admin_api.php` |
-| `AIRTABLE_TABLE_ID` | Table ID ของ Airtable (ขึ้นต้นด้วย `tbl`) | `backend/admin_api.php` |
-| `JOTFORM_API_KEY` | API Key จาก JotForm account (ใช้เฉพาะฟีเจอร์ sync ที่ปัจจุบันไม่ได้ใช้กับฟอร์มบริษัท) | `backend/active_courses.php` |
-| `JOTFORM_FORM_ID` | ID ของฟอร์มสมัครเรียนใน JotForm | `backend/active_courses.php` |
-| `JOTFORM_FIELD_ID` | ID ของ field dropdown เลือกคอร์สในฟอร์ม | `backend/active_courses.php` |
+| Base URI | `https://oauth.dhammakaya.network` | `OAUTH_BASE_URI` |
+| `client_id` / `client_secret` | ได้จาก IT | ใช้ทั้งล็อกอินและ CAS (แยกเป็น `CAS_CLIENT_*` ได้ถ้า IT ออกให้คนละชุด) |
+| **redirect_uri** | `https://comtrain-webcertificate.onrender.com/backend/oauth_callback.php` | **ต้องลงทะเบียนกับ IT และตรงกันทุกตัวอักษร** ทั้งตอน authorize และตอนแลก token ถ้าย้ายโดเมนต้องแจ้ง IT |
+| **CallbackURL ของ CAS** | `https://comtrain-webcertificate.onrender.com/backend/cas_callback.php` | เว็บเราส่งไปใน body ของทุกคำขอเอง (`APP_URL` + `/backend/cas_callback.php`) CAS ตอบกลับเป็น GET |
 
-บน Render ตั้งค่าได้ที่ Dashboard → service → Environment tab
+**API ที่ใช้**
+| Endpoint | วิธี | ส่ง | ได้ |
+|---|---|---|---|
+| `/oauth/authorize` | redirect | `client_id`, `redirect_uri`, `state`, `response_type=code` | `code`, `state` กลับที่ redirect_uri |
+| `/oauth/token` | POST | `code`, `client_id`, `client_secret`, `redirect_uri`, `grant_type` | `access_token` |
+| `/api/user` | GET (Bearer) | — | `username` (บัญชี AD), ชื่อ |
+| `/api/cas/request` | POST | `client_id`, `client_secret`, `ExternalRefID`, `ApproveType`, `MsgSubject`, `MsgForHead`, `Requester_ADUser`, `CallbackURL` | `success`, `data{RequestKey, ADApprover, HeadFullName, HeadShowEmail, Position, Organization}` |
+| `/api/cas/reqstat` | POST | `client_id`, `ExternalRefID` | `Status`, `ApproveStep`, `Approver_ADUser` |
 
-> หลังเพิ่มตัวแปรชุด OAuth/CAS ต้อง Save แล้ว Render จะ redeploy อัตโนมัติ
+**แยกให้ชัด:** CAS **หาหัวหน้ากองเอง** จากบัญชีผู้ขอ — เว็บเราไม่ส่งชื่อหัวหน้า `HeadShowEmail` เป็นอีเมลที่ CAS ปิดบางส่วนมาแล้ว (เช่น `so****72@gmail.com`) เราแสดงตามที่ได้
+
+### 8.3 Airtable
+Base `appI37LT5wFrI4ITA` ใช้เป็นระบบเดิมของบริษัท และเป็นแหล่งนำเข้าย้อนหลัง อ่านด้วย Personal Access Token (`AIRTABLE_API_KEY`) field ที่ใช้จัดกลุ่มคอร์สคือ **"โปรแกรมที่สมัคร"** (ค่าคงที่ `AIRTABLE_COURSE_FIELD` ใน `admin_api.php`)
 
 ---
 
-## ข้อจำกัดและวิธีแก้ที่ใช้อยู่
+## 9. Environment Variables
 
-### Render แผนฟรี "หลับ" หลัง idle 15 นาที
-เมื่อไม่มีคนเข้าใช้ 15 นาที Render จะปิด container ชั่วคราว คนแรกที่กลับมาเข้าเว็บต้องรอ ~30-50 วินาทีให้ container ตื่น **วิธีแก้ที่ใช้อยู่:** ตั้ง **UptimeRobot** ปิง URL ทุก 5 นาที ทำให้เว็บไม่เคย idle ครบ 15 นาที
+ตั้งบน Render: Dashboard → service → **Environment** (หลัง Save จะ redeploy อัตโนมัติ) / บนเครื่อง local ใช้ไฟล์ `.env`
 
-### SSL Certificate บนเครื่อง Windows
-PHP บน Windows อาจไม่มี SSL certificate bundle ทำให้ `curl` ต่อ Airtable API ไม่ได้ **วิธีแก้:** ดาวน์โหลด `cacert.pem` จาก [curl.se/ca/cacert.pem](https://curl.se/ca/cacert.pem) แล้วตั้งค่าใน `php.ini` (ดูรายละเอียดที่ขั้นตอน Local Setup ข้อ 5)
+| ตัวแปร | จำเป็น | คำอธิบาย | ใช้ใน |
+|---|---|---|---|
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS` | ✅ | การเชื่อมต่อ Neon | `database/config.php` |
+| `ADMIN_USER`, `ADMIN_PASS` | ✅ | ล็อกอินแอดมิน | `backend/auth.php` |
+| `APP_URL` | ✅ | URL เว็บนี้ ไม่มี `/` ท้าย (ใช้ประกอบ redirect และ CallbackURL ของ CAS) | `user_session.php` |
+| `OAUTH_BASE_URI` | ✅ | `https://oauth.dhammakaya.network` | `DkcOAuth.php`, `CasClient.php` |
+| `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET` | ✅ | ได้จาก IT (Secret) | เหมือนข้างบน |
+| `OAUTH_REDIRECT_URI` | ✅ | `…/backend/oauth_callback.php` ต้องตรงที่ลงทะเบียน | `DkcOAuth.php` |
+| `CAS_CLIENT_ID`, `CAS_CLIENT_SECRET` | ไม่บังคับ | ถ้า CAS ใช้คีย์คนละชุดกับล็อกอิน | `CasClient.php` |
+| `CAS_REQUEST_URL`, `CAS_REQ_STATUS_URL` | ไม่บังคับ | override URL ของ CAS (ค่าเริ่มต้นต่อจาก `OAUTH_BASE_URI`) | `CasClient.php` |
+| `CAS_MSG_HTML` | ไม่บังคับ | `1` = ส่งข้อความถึงหัวหน้ากองเป็น HTML; ไม่ตั้ง = ข้อความธรรมดา (**ตอนนี้ใช้ `1`**) | `approval_submit.php` |
+| `AIRTABLE_API_KEY`, `AIRTABLE_BASE_ID`, `AIRTABLE_TABLE_ID` | สำหรับนำเข้า | Airtable | `admin_api.php` |
+| `JOTFORM_API_KEY`, `JOTFORM_FORM_ID`, `JOTFORM_FIELD_ID` | ไม่ได้ใช้จริง | ฟีเจอร์ Sync JotForm (เก็บโค้ดไว้) | `active_courses.php` |
 
-### ข้อจำกัดของระบบขออนุมัติ
-- **ไม่มี Submission ID ใน JotForm redirect** รหัสอ้างอิงจึงสร้างฝั่งเว็บนี้ (`JF-<เวลา>-<hex>`) การกดส่งฟอร์มซ้ำ 2 ครั้งจึงเป็นคำขอแยกกัน 2 รายการ และคำขอไม่ผูกกับแถวผู้เรียนใน Neon โดยตรง (เทียบด้วยชื่อ/คอร์สเท่านั้น)
-- **ชื่อ/คอร์ส/ประเภทปรากฏใน URL** ของหน้า Thank you และ approval_start.php (ลิงก์ที่ผู้สมัครแชร์จะเห็นชื่อ)
-- **การแยกประเภททำฝั่ง browser** (ใน `thankyou.html`) ผู้ที่แก้ลิงก์เองอาจข้ามการขออนุมัติได้ ยอมรับได้เพราะการอนุมัติเป็นเพียงการติดตามสถานะ
-- ผู้ที่เริ่มสมัครแล้วปิดหน้าก่อนล็อกอิน/ส่งคำขอ จะมีข้อมูลใน Neon แต่ไม่มีคำขอในแท็บ (ยังไม่มีการเทียบรายชื่อที่ขาดคำขอ)
-- ถ้าผู้ใช้กด "ไม่อนุญาต" ที่หน้าล็อกอิน DKC จะค้างที่หน้าของ DKC (ไม่กลับมาหน้า Thank you)
-- `approval_result.php` เป็นสาธารณะและยังไม่มี rate limit (ตอบแค่สถานะ + ชื่อหัวหน้ากอง และรหัสอ้างอิงเดายาก)
-- คีย์ `ADMIN_API_KEY` ที่เคยปรากฏในบทสนทนา/เอกสารควรเปลี่ยนใหม่ (ทั้ง Cloudflare และ Render) ก่อนใช้งานจริง
-
-### Webhook ตกหล่นเมื่อคอร์สยังไม่มีในระบบ
-เพราะแอดมินไปเพิ่ม/แก้ dropdown ที่หน้า JotForm โดยตรง โดยไม่ผ่านเว็บนี้ก่อน ผู้สมัครที่เลือกคอร์สใหม่ (ที่ยังไม่มีในตาราง `courses`) จะเข้า Airtable ปกติ แต่ไม่เข้า Neon **วิธีแก้ที่ใช้อยู่:** เช็ค Render Logs หรือ JotForm webhook log เป็นระยะ แล้วใช้เมนู "นำเข้าข้อมูลจาก Airtable" สร้างคอร์สที่ตกหล่น + นำเข้าย้อนหลัง
+> ห้าม commit `.env` และห้ามวางค่า secret ในแชต/เอกสาร ถ้ารั่วให้เปลี่ยนค่าใหม่ทันที
 
 ---
 
-## ปัญหาที่เคยเจอ และวิธีแก้ (Troubleshooting Log)
+## 10. รันบนเครื่องตัวเอง (Local Setup)
 
-| ปัญหา | สาเหตุ | วิธีแก้ |
+1. เตรียม PostgreSQL (Neon ฟรี หรือ Postgres ที่ติดตั้งเอง)
+2. สร้างตาราง: `psql "postgresql://<user>:<pass>@<host>/<db>" -f database/schema.sql` (ข้อมูลตัวอย่างเพิ่มเติม: `-f database/seed.sql`)
+3. สร้าง `.env` ที่ root โดยใส่ตัวแปรใน §9 (อย่างน้อย `DB_*`, `ADMIN_*`; ถ้าจะทดสอบขออนุมัติ ต้องมี `OAUTH_*` และ `APP_URL` เป็น `http://localhost:8000` และ redirect_uri ต้องลงทะเบียนกับ IT เพิ่ม หรือใช้ระบบจำลอง)
+4. ตรวจ extension: `php -m | findstr pgsql` ต้องเห็น `pdo_pgsql`
+5. Windows: ตั้ง `curl.cainfo` / `openssl.cafile` ใน `php.ini` ชี้ไฟล์ `cacert.pem` (จาก curl.se/ca/cacert.pem) ไม่งั้น cURL ต่อ Airtable/DKC ไม่ได้
+6. รัน `php -S localhost:8000` แล้วเปิด `http://localhost:8000`
+7. (ทางเลือก) Docker: `docker build -t webcertificate .` แล้ว `docker run -p 8080:10000 -e PORT=10000 --env-file .env webcertificate`
+
+> `database/config.php` ใช้ `sslmode=require` (สำหรับ Neon) ถ้าต่อ Postgres local ที่ไม่มี SSL ต้องปรับชั่วคราว
+> ทดสอบ flow ขออนุมัติโดยไม่ยิง DKC จริง: ทำ mock server จำลอง `/oauth/authorize`, `/oauth/token`, `/api/user`, `/api/cas/request`, `/api/cas/reqstat` แล้วตั้ง `OAUTH_BASE_URI` ไปที่ mock
+
+---
+
+## 11. Deploy และเช็คลิสต์ก่อนเปิดใช้จริง
+
+**Deploy:** push ขึ้น GitHub `main` → Render build Dockerfile เอง (รอสถานะ **Live** ประมาณ 2–5 นาที) — ระวังตอนวางไฟล์ทับในเครื่อง: **วางทีละไฟล์ตามโฟลเดอร์ อย่าวางทับทั้งโฟลเดอร์** (ไฟล์ที่ไม่มีในชุดที่วางจะถูกลบ) และดู `git status` ก่อน commit ทุกครั้ง
+
+**ตั้งระบบครั้งแรก (ทำแล้วสำหรับฟอร์มทดลอง)**
+1. รัน `database/approval_requests.sql` ใน Neon SQL Editor (ครั้งเดียว; ใช้ `IF NOT EXISTS` รันซ้ำได้)
+2. ตั้ง env ใน §9 บน Render
+3. ให้ IT ลงทะเบียน redirect_uri และยืนยันว่า CAS รับ CallbackURL ใหม่
+4. ตั้ง JotForm Thank You Page (§8.1ค)
+
+**เช็คลิสต์เปิดใช้กับฟอร์มบริษัท**
+- [ ] Unique Name ของฟอร์มบริษัทตรงกับ `typeA110`, `input111`, `input93`, `typeA`
+- [ ] ตัวเลือกประเภทที่ไม่ต้องขออนุมัติขึ้นต้นด้วย "ผู้นำบุญ"
+- [ ] ตั้ง Thank You Page เป็น redirect (ลิงก์ใน §8.1ค), ปิด Send Post Data, ลบ Thank You Conditions
+- [ ] วางรูป QR จริงที่ `assets/images/line-qr.png`
+- [ ] ทดสอบ 2 กรณี (ประเภทต้องขออนุมัติ / ผู้นำบุญ) — ระวัง: คำขอจะส่งอีเมลถึงหัวหน้ากองจริงของบัญชีที่ล็อกอิน และข้อมูลทดสอบเข้า Airtable+Neon จริง ต้องลบหลังทดสอบ
+- [ ] เปลี่ยนคีย์ที่เคยรั่ว / ลบ Portal (§17)
+
+---
+
+## 12. ความปลอดภัย
+
+| เรื่อง | มาตรการ |
+|---|---|
+| ล็อกอิน DKC | `state` สุ่ม ใช้ครั้งเดียว + `hash_equals`; เปลี่ยน session id หลังล็อกอิน; ไม่เก็บ access token; คุกกี้ HttpOnly/SameSite=Lax/Secure |
+| ปลอมสถานะอนุมัติ | `cas_callback.php` ไม่เชื่อ query string ต้องถาม CAS (`reqstat`) ซ้ำเสมอ |
+| ข้อมูลจาก URL (ชื่อ/คอร์ส/ประเภท) | แสดงด้วย `textContent`; ตัดความยาว; ส่งเข้าอีเมลหัวหน้ากองด้วย `htmlspecialchars` |
+| `ref` | สุ่มเดายาก (`random_bytes`); `approval_result.php` ตรวจ regex และไม่ส่งข้อมูลผู้สมัครกลับ |
+| ส่งซ้ำ | ตรวจ `ref` ใน Neon ก่อนเรียก CAS; ผู้ใช้อื่นใช้ `ref` เดียวกันไม่ได้ (`dup`) |
+| แอดมิน | session แยกจากผู้ใช้ DKC; ทุก endpoint แอดมินผ่าน `require_admin.php`; `ORDER BY` ใช้ whitelist |
+| ข้อผิดพลาด | `error_handler.php` log รายละเอียดที่ server เท่านั้น ไม่ส่งรายละเอียดฐานข้อมูลให้ client |
+| Redirect | `dkc_redirect*()` ใช้ path ของเว็บนี้เสมอ ไม่รับ URL จากผู้ใช้ (กัน open redirect); ปุ่ม "ลองส่งใหม่" ชี้ path ตายตัว |
+| Secrets | ใช้ env เท่านั้น ไม่มีรหัสในโค้ด |
+
+---
+
+## 13. คู่มือสำหรับนักพัฒนา: อยากแก้เรื่องนี้ ต้องแก้ตรงไหน
+
+| อยากทำ | แก้ที่ |
+|---|---|
+| เปลี่ยนข้อความ/หัวข้ออีเมลถึงหัวหน้ากอง | `backend/lib/ApprovalMessage.php` (ข้อความ + HTML), หัวข้อ `$subject` ใน `approval_submit.php` |
+| เปิด/ปิดอีเมลแบบ HTML | env `CAS_MSG_HTML` บน Render (`1` = เปิด) ไม่ต้องแก้โค้ด |
+| เปลี่ยน `ApproveType` (1 → 2) | `approval_submit.php` (พารามิเตอร์ที่ส่งเข้า `sendRequest`) |
+| เปลี่ยนกฎว่าประเภทไหนต้องขออนุมัติ | `thankyou.html` ตัวแปร `needsApproval` (ตอนนี้ = ไม่ขึ้นต้นด้วย "ผู้นำบุญ") |
+| เปลี่ยนข้อความ/สไตล์หน้า Thank you | `thankyou.html` (CSS+JS ในไฟล์เดียว) |
+| เปลี่ยนรูป QR กลุ่มไลน์ | วางไฟล์ `assets/images/line-qr.png` ทับ (ถ้าเปลี่ยนชื่อไฟล์ แก้ `img.src` ใน `thankyou.html`) |
+| เพิ่มข้อมูลของหัวหน้ากองที่หน้า Thank you | `approval_result.php` (อ่านจาก `cas_data`) + `resultView()` ใน `thankyou.html` |
+| เพิ่มคอลัมน์ในแท็บ "คำขออนุมัติ" | `ApprovalRepository::listPage()` + `fetchApprovals()` ใน `assets/js/admin.js` + ส่วนหัวตารางใน `index.html` |
+| เพิ่มฟิลด์ผู้สมัครที่เก็บใน Neon | `jotform_webhook.php` (mapping), `StudentRepository::insertFromAirtable()`, `database/schema.sql` + `ALTER TABLE` บน Neon |
+| ฟอร์ม JotForm เปลี่ยน field id | `jotform_webhook.php` ตาราง mapping §8.1ข และตัวแปรใน Thank You URL §8.1ค |
+| ย้ายโดเมนเว็บ | `APP_URL`, `OAUTH_REDIRECT_URI` บน Render + แจ้ง IT ลงทะเบียน redirect_uri และ CallbackURL ใหม่ + แก้ลิงก์ Thank You ใน JotForm + Webhook URL |
+| ปรับเงื่อนไขกันส่งซ้ำ | `approval_submit.php` (ส่วนตรวจ `find($ref)`) |
+| ผูกคำขอกับผู้เรียนให้แม่นขึ้น | ต้องมี Submission ID ของ JotForm (ดูข้อจำกัดใน §14) |
+| เพิ่ม endpoint แอดมินใหม่ | เพิ่ม `if ($action === '…')` ใน `admin_api.php` (ผ่าน `require_admin.php` อยู่แล้ว) และ SQL ใส่ใน Repository |
+
+---
+
+## 14. ข้อจำกัดและการตัดสินใจที่ผ่านมา
+
+### การตัดสินใจเชิงออกแบบ
+- **ไม่ auto-create คอร์ส** เมื่อ webhook หาคอร์สไม่เจอ → เพื่อให้ข้อมูลคอร์สสะอาด แล้วใช้เมนูนำเข้า Airtable แก้ย้อนหลัง
+- **การอนุมัติเป็นติดตามสถานะเท่านั้น** และผู้สมัครเลือก "ยกเลิก/ส่งภายหลัง" ได้ (ตัดสินใจเมื่อ ต.ค. 2569 ให้มีผู้สมัครที่ไม่มีคำขอได้)
+- **เลิกใช้ DKC Portal (Cloudflare Worker + D1)** ย้ายการล็อกอิน/CAS/เก็บสถานะมาไว้ในเว็บนี้ ข้อมูลเก่าใน D1 (ทดสอบเท่านั้น) ไม่ย้ายมา
+- **ผู้ขอ = บัญชีที่ล็อกอิน** ไม่ใช่ชื่อในฟอร์ม (ถ้าคนละคนกัน คำขอจะผูกกับบัญชีที่ล็อกอิน)
+
+### ข้อจำกัดที่ยังมี
+- **ไม่มี Submission ID ที่ฝั่งเว็บ** (JotForm redirect แบบ URL ไม่ส่ง ID) รหัสอ้างอิงจึงสร้างเอง ส่งฟอร์มซ้ำ = คำขอใหม่แยกกัน และการผูก `student_id` เป็นการเดาด้วยชื่อ+คอร์ส
+- **ชื่อ/คอร์ส/ประเภทอยู่ใน URL** ของ Thank you และ `approval_start.php` (ผู้ที่แชร์ลิงก์จะเห็นชื่อ)
+- **การตัดสินประเภทที่ต้องขออนุมัติทำฝั่ง browser** ผู้ที่แก้ลิงก์เองอาจข้ามหรือเรียกได้เอง ยอมรับได้เพราะเป็นเพียงการติดตามสถานะ
+- **ไม่มี PDF สรุปจาก JotForm บนหน้า Thank you** → ลิงก์ PDF ของ JotForm (`getSubmissionPDFv2&hash=…`) ใช้ `hash` ที่เข้ารหัสโดย JotForm เองและส่งมาเฉพาะหน้า Thank You ของ JotForm ไม่อยู่ใน redirect/POST/Webhook และลิงก์รูปแบบเก่า (`getSubmissionPDF&sid=…`) ตอบ "not authorized" ทางเลือกที่เหลือ: ให้ JotForm ส่งอีเมลยืนยันพร้อมแนบ PDF (ตั้งในหน้า Emails) หรือทำหน้าสรุปข้อมูลของเราเองจาก POST (`submission_id` + ฟิลด์ครบ ต้องเปลี่ยน Thank You เป็น POST ผ่านไฟล์ PHP ตัวกลาง)
+- ผู้ที่เริ่มสมัครแล้วปิดหน้าก่อนส่งคำขอ จะมีข้อมูลใน Neon แต่ไม่มีคำขอในแท็บ (ยังไม่มีรายงานเทียบ)
+- `approval_result.php` เป็นสาธารณะและไม่มี rate limit (ตอบเฉพาะสถานะ+ข้อมูลหัวหน้ากอง และ `ref` เดายาก)
+- **Render แผนฟรีหลับหลัง idle 15 นาที** แก้ด้วย UptimeRobot ปิงทุก 5 นาที ถ้าหยุดปิง คนแรกจะรอ ~30–50 วินาที
+- **Webhook ตกหล่นเมื่อคอร์สยังไม่มีในระบบ** (แอดมินเพิ่ม dropdown ใน JotForm ก่อน) ดูวิธีเช็ค/แก้ใน §15
+- **SSL บน Windows (local)** ต้องตั้ง `cacert.pem` (§10)
+
+---
+
+## 15. ปัญหาที่เคยเจอ และวิธีแก้ (Troubleshooting)
+
+### วิธีเช็คเมื่อสงสัยว่า webhook หาคอร์สไม่เจอ
+- **Render Logs:** Dashboard → service → Logs → ค้นหา `jotform_webhook` — `OK: …` = สำเร็จ, `ERROR: ไม่พบคอร์สชื่อ '…'` = ตกหล่น
+- **JotForm:** ฟอร์ม → Settings → Integrations → Webhooks → ดู Log ของ integration นี้
+- แก้: สร้างคอร์สให้ชื่อตรงกับ dropdown แล้วใช้เมนู "นำเข้าข้อมูลจาก Airtable"
+
+### ตารางปัญหา
+| อาการ | สาเหตุ | วิธีแก้ |
 |---|---|---|
-| หน้า Airtable preview แสดงแค่คอร์สละ 1 คน | field ที่ใช้ group คือ "ชื่อโปรแกรม" ซึ่งส่วนใหญ่ว่าง — field จริงที่มีข้อมูลครบคือ "โปรแกรมที่สมัคร" (Single select) | แก้ `AIRTABLE_COURSE_FIELD` ใน `admin_api.php` จาก `ชื่อโปรแกรม` เป็น `โปรแกรมที่สมัคร` |
-| แท็บ "คำขออนุมัติ" error / ว่างเปล่าทั้งที่มีคำขอ | ยังไม่ได้รัน `database/approval_requests.sql` ใน Neon | รัน SQL แล้วรีเฟรช |
-| thankyou แสดง "ล็อกอินบัญชี DKC ไม่สำเร็จ" (`e=login`) | `OAUTH_*` ไม่ครบ / redirect_uri ไม่ตรงที่ IT ลงทะเบียน / ผู้ใช้กดไม่อนุญาต | ตรวจ env และ redirect_uri ต้องตรงทุกตัวอักษร ดู Render Logs `[oauth_callback]` |
-| `e=cas` / `e=upstream` | CAS ปฏิเสธ (หา AD/หัวหน้ากองไม่พบ หรือ client ไม่มีสิทธิ์) / CAS ไม่ตอบ | ดู Render Logs `[approval_submit]` และถาม IT |
-| `e=db` | CAS รับคำขอแล้วแต่บันทึก Neon ไม่สำเร็จ | ตรวจตาราง/การเชื่อมต่อ Neon แจ้งเจ้าหน้าที่พร้อมรหัสอ้างอิง |
-| `Cannot read properties of undefined (reading 'filter')` | browser โหลด `admin.js` เวอร์ชันเก่าจาก cache | กด `Ctrl+Shift+R` หรือเพิ่ม `?v=N` ต่อท้ายชื่อไฟล์ JS ใน `index.html` |
-| `Maximum execution time exceeded` บนเครื่อง local | query database ทีละ record (829 ครั้ง) ช้าเกิน 30 วินาที | แก้ให้ดึง courses ทั้งหมดมาครั้งเดียวแล้ว match ใน PHP + เพิ่ม `max_execution_time` ใน `php.ini` |
-| `SSL certificate verify failed` บนเครื่อง Windows | PHP ไม่มี CA bundle | ดาวน์โหลด `cacert.pem` และตั้งค่า `curl.cainfo` / `openssl.cafile` ใน `php.ini` |
-| admin credentials ไม่ถูกรู้จักบนเครื่อง local | `auth.php` และ endpoint อื่นไม่ได้โหลด `.env` | สร้าง `load_env.php` รวมโค้ดโหลด `.env` ไว้ที่เดียว แล้วให้ทุกไฟล์ `require_once` แค่บรรทัดเดียว |
-| `airtable_preview` ช้ามากบนเครื่อง local | เรียก `findByShortNameOrLongKey()` ทุก record = query หลายร้อยครั้ง | เปลี่ยนเป็นดึง courses ทั้งหมดมาครั้งเดียว index เป็น PHP array map แล้วค้นหาใน memory แทน |
-| Sync ไป JotForm แล้ว dropdown ยังโชว์ชื่อย่อ ไม่ใช่ชื่อยาวตามที่ต้องการ | `listActiveShortNames()` และหน้า admin ดึง/แสดง `short_name` อยู่ | เปลี่ยนเป็น `listActiveLongKeys()` (query คอลัมน์ `long_key`) ทั้งใน `CourseRepository`, `active_courses.php`, และตาราง "เปิดรับสมัคร" ใน `admin.js` |
-| Webhook ตอบ `500 Internal Server Error` ทุกครั้งที่มีคน submit ฟอร์มบริษัท (`trim(): Argument #1 ($string) must be of type string, array given`) | field "เบอร์ภายใน" (id 38) เป็น type `control_phone` เหมือน field เบอร์มือถือ ส่งมาเป็น array ไม่ใช่ string ธรรมดา แต่โค้ดเขียน `trim($raw['q38_input38'])` ตรง ๆ | แก้เป็น `trim($raw['q38_input38']['full'] ?? '')` ให้ดึงค่าจาก array เหมือนที่ทำกับเบอร์มือถือ |
-| Cloudflare build ล้มเหลวที่ขั้น Deploying (build/install ผ่านปกติ) หลังวางไฟล์ `wrangler.toml` ใหม่ | ไฟล์ที่วางทับมี `database_id` เป็นค่าตัวอย่าง (`REPLACE_WITH_YOUR_D1_DATABASE_ID`) ทำให้ค่าจริงของ D1 หาย | แก้ `database_id` กลับเป็นค่าจริงของ D1 (`dkc-portal-db`) แล้ว push ใหม่ — **ก่อนวางทับ `wrangler.toml` ให้เช็ก `database_id` เสมอ** |
-| ตั้ง Conditions "Change Thank You page" ใน JotForm ไว้ แล้วผู้สมัครไม่เห็นหน้า Thank you ของเว็บ หรือผู้นำบุญถูกส่งไป Portal | เงื่อนไขเดิมยังเหลืออยู่ และทับค่า Thank You Page หลัก | ลบ Conditions ทั้งหมดของ Thank You (ใช้เฉพาะ Thank You Page หลัก) เพราะ `thankyou.html` แยกประเภทเองแล้ว |
-| ย้ายไปใช้ JotForm ฟอร์มบริษัท (231301336713444) แล้ว webhook หาคอร์สไม่เจอทั้งที่มีคอร์สนั้นในระบบแล้ว | field id ของฟอร์มบริษัทไม่เหมือนฟอร์มทดลองเดิม (`q93_input115` เดิม → ที่จริงคือ `q93_input93` ในฟอร์มใหม่) รวมถึงฟิลด์อื่น ๆ ทั้งหมดเปลี่ยน id ตามฟอร์ม | ดึง field id จริงผ่าน `GET https://api.jotform.com/form/{formId}/questions?apiKey=...` แล้ว map ใหม่ทั้งหมดใน `jotform_webhook.php` ตามฟอร์มที่ใช้งานจริง |
+| thankyou ขึ้น "ล็อกอินบัญชี DKC ไม่สำเร็จ" (`e=login`) | `OAUTH_*` ไม่ครบ / redirect_uri ไม่ตรงที่ IT ลงทะเบียน / ผู้ใช้กดไม่อนุญาต / state หมดอายุ | ตรวจ env และ redirect_uri ให้ตรงทุกตัวอักษร ดู Render Logs `[oauth_callback]` |
+| `e=cas` / `e=upstream` | CAS ปฏิเสธ (หา AD/หัวหน้ากองไม่พบ, client ไม่มีสิทธิ์) / CAS ไม่ตอบ | ดู Render Logs `[approval_submit]` และถาม IT |
+| `e=db` | CAS รับแล้วแต่บันทึก Neon พลาด | ตรวจตาราง/การเชื่อมต่อ Neon; ติดต่อเจ้าหน้าที่พร้อมรหัสอ้างอิง |
+| แท็บ "คำขออนุมัติ" error/ว่าง | ยังไม่ได้รัน `database/approval_requests.sql` | รัน SQL ใน Neon |
+| ไม่ล็อกอินซ้ำเลย ผ่านทันทีตอนทดสอบ | เบราว์เซอร์ยังล็อกอิน DKC ค้าง (SSO) | ปกติ — ทดสอบด้วย Incognito เพื่อเห็นหน้าล็อกอิน |
+| หัวหน้ากองเห็นอีเมลเป็นข้อความธรรมดา | ยังไม่ได้ตั้ง `CAS_MSG_HTML=1` หรือ deploy ยังไม่เสร็จ | ตั้งตัวแปรบน Render แล้วรอ Live ส่งคำขอใหม่ (คำขอเก่าไม่เปลี่ยน) |
+| อีเมลขึ้นแท็บ HTML เป็นตัวอักษร | CAS ไม่แสดง HTML | ลบตัวแปร `CAS_MSG_HTML` |
+| ผู้สมัครไม่เห็นหน้า Thank you ของเว็บ / ผู้นำบุญถูกส่งไปที่อื่น | ตั้ง Conditions "Change Thank You page" ทับ Thank You Page หลัก | ลบ Conditions Thank You ทั้งหมด |
+| Thank you ไม่แสดงชื่อ/คอร์ส | Unique Name ในลิงก์ไม่ตรงกับฟิลด์ในฟอร์ม | ตรวจ Unique Name (§8.1ค) |
+| Webhook ตอบ 500 (`trim(): Argument #1 … array given`) | ช่องเบอร์ (`control_phone`) ส่งมาเป็น array | ดึง `['full']` เหมือนในโค้ดปัจจุบัน |
+| webhook หาคอร์สไม่เจอหลังย้ายไปฟอร์มบริษัท | field id ของฟอร์มบริษัทไม่เหมือนฟอร์มทดลอง | map ใหม่จาก `GET /form/{id}/questions` (§8.1ข) |
+| Airtable preview แสดงคอร์สละ 1 คน | จัดกลุ่มผิด field ("ชื่อโปรแกรม" ว่าง) | ใช้ "โปรแกรมที่สมัคร" (`AIRTABLE_COURSE_FIELD`) |
+| หน้า Admin: `Cannot read properties of undefined (reading 'filter')` | เบราว์เซอร์โหลด `admin.js` เก่าจาก cache | `Ctrl+Shift+R` หรือเพิ่ม `?v=N` ต่อท้าย JS ใน `index.html` |
+| `Maximum execution time exceeded` (local) | query ทีละ record | ดึง courses ครั้งเดียวแล้ว match ใน PHP (ทำแล้ว) |
+| `SSL certificate verify failed` (Windows) | PHP ไม่มี CA bundle | ตั้ง `curl.cainfo`/`openssl.cafile` |
+| Sync ไป JotForm แล้ว dropdown เป็นชื่อย่อ | ใช้ `listActiveShortNames()` | ใช้ `listActiveLongKeys()` (แก้แล้ว) |
+| หลังวางไฟล์ทับ `git status` ขึ้น deleted หลายไฟล์ | วางทับทั้งโฟลเดอร์แทนที่จะรวมไฟล์ | `git restore <ไฟล์ที่ลบ>` แล้ววางทีละไฟล์ |
+| (Portal เดิม) Cloudflare build ล้มที่ Deploying | `wrangler.toml` มี `database_id` ตัวอย่าง | ใส่ค่า D1 จริง — เกี่ยวเฉพาะ Portal ที่เลิกใช้แล้ว |
 
 ---
 
-## ประวัติการพัฒนา
+## 16. ประวัติการพัฒนา
 
-ระบบเดิมของศูนย์อบรมคอมพิวเตอร์ยังไม่มีระบบออกใบประกาศนียบัตรออนไลน์ให้ผู้เข้าอบรมเลย ส่วนการรับสมัครทำได้แค่ให้ผู้สมัครกรอกฟอร์มผ่านลิงก์ **JotForm** แล้วข้อมูลจะถูกบันทึกเก็บไว้ใน **Airtable** เพียงเท่านั้น ไม่มีระบบจัดการหลักสูตร ไม่มีระบบดึงรายชื่อมาออกใบประกาศ และไม่มี Admin Panel ใด ๆ
-
-โปรเจกต์นี้จึงถูกสร้างขึ้นมาใหม่ทั้งหมด เพื่อให้ผู้เข้าอบรมสามารถดึงรายชื่อคอร์สต่าง ๆ และรายชื่อของตัวเองมา **ออกใบประกาศนียบัตรออนไลน์ได้ด้วยตัวเอง** โดยช่วงแรกทดลองต่อกับฟอร์ม JotForm ของตัวเองก่อน (261701468554460) เพื่อทดสอบ flow การรับสมัคร → เก็บลง Neon (PostgreSQL) ทั้งหมด
-
-หลังจากทดสอบระบบผ่านเรียบร้อย จึงย้ายมาเชื่อมกับ **ฟอร์มจริงของบริษัท (231301336713444)** ที่มีอยู่เดิมและเชื่อมกับ Airtable บริษัทอยู่แล้ว โดยออกแบบให้เป็น **dual-write**: เพิ่ม Webhook integration เข้าไปคู่ขนานกับ Airtable integration เดิม โดยไม่แตะของเดิมเลย ทำให้เมื่อมีคนสมัครเรียนใหม่ ข้อมูลจะเข้าทั้ง Airtable (ระบบเดิมของบริษัท) และ Neon (ระบบใหม่) พร้อมกันอัตโนมัติ แอดมินยังคงเปิด/ปิดคอร์สที่หน้า JotForm ได้ตามเดิมทุกประการ ไม่ต้องเปลี่ยนพฤติกรรมการทำงาน
-
-เพื่อรองรับกรณีที่แอดมินเพิ่มคอร์สใหม่ใน JotForm dropdown ก่อนที่จะมาสร้างคอร์สในเว็บใหม่ (ทำให้ webhook หาคอร์สไม่เจอชั่วคราว) ระบบออกแบบให้**ไม่ auto-create คอร์ส**เพื่อรักษาความสะอาดของข้อมูล แต่จะบันทึก log ไว้ให้ตรวจสอบได้ และมีฟีเจอร์ "นำเข้าข้อมูลจาก Airtable" คอยเป็นทางแก้ย้อนหลัง — กด import จาก Airtable ได้ทุกเมื่อเพื่อดึงรายชื่อที่ตกหล่นกลับเข้าระบบ
-
-ส่วนปัญหาเว็บ "หลับ" ของ hosting แผนฟรีก็แก้ด้วย UptimeRobot ทำให้ใช้งานได้ต่อเนื่องโดยไม่ต้องเสียค่าใช้จ่ายเพิ่ม
-
-ต่อมาเพิ่ม **ระบบขออนุมัติจากหัวหน้ากอง (CAS)** เพื่อให้ผู้สมัครที่มีบัญชี AD (ทุกประเภทสมาชิกยกเว้น "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ") ขออนุมัติจากหัวหน้ากองได้ทันทีหลังกรอกฟอร์ม โดยสร้าง **DKC Portal** (Cloudflare Worker + D1) ทำหน้าที่ล็อกอิน DKC ส่งคำขอ และเก็บประวัติสถานะ พัฒนาเป็นขั้นตอน: (1) Portal + D1 + หน้าขออนุมัติที่เติมข้อมูลให้ล่วงหน้า (2) แท็บ "คำขออนุมัติ" บนเว็บใบประกาศสำหรับแอดมิน (3) ปรับเป็นส่งอัตโนมัติ — JotForm ใช้ Thank You Page อย่างเดียวชี้มาที่ `thankyou.html` ซึ่งแยกประเภทและส่งต่อไป Portal `/submit` แล้วกลับมาแสดงผลส่งถึงหัวหน้ากอง การทดสอบครบวงจรทำกับฟอร์มทดสอบ (261701468554460) และคอร์สทดสอบ `TEST-ระบบขออนุมัติ` ผ่านแล้ว รวมถึงการที่หัวหน้ากองกดอนุมัติจริงแล้วสถานะอัปเดตถึงแท็บ
+1. **ระบบใบประกาศ:** เดิมศูนย์ฯ รับสมัครผ่าน JotForm เก็บใน Airtable อย่างเดียว ไม่มีระบบออกใบประกาศ/จัดการหลักสูตร จึงสร้างเว็บนี้ (PHP + Neon + Render) ให้ผู้เข้าอบรมดึงชื่อมาออกใบประกาศได้เอง พร้อม Admin Panel
+2. **ทดลองกับฟอร์มตัวเอง** (`261701468554460`) ทดสอบ flow สมัคร → Neon แล้วย้ายมาเชื่อม **ฟอร์มบริษัท** (`231301336713444`) แบบ **dual-write** เพิ่ม Webhook คู่ขนานกับ Airtable โดยไม่แตะของเดิม
+3. **ทางแก้ webhook ตกหล่น:** ไม่ auto-create คอร์ส แต่ log + เมนูนำเข้า Airtable ย้อนหลัง; แก้เว็บหลับด้วย UptimeRobot
+4. **ระบบขออนุมัติ (CAS) รุ่นแรก:** สร้าง DKC Portal (Cloudflare Worker + D1) ทำล็อกอิน/ส่ง CAS/เก็บสถานะ + แท็บแอดมินดูคำขอ + ส่งอัตโนมัติจาก Thank you
+5. **ย้ายมาไว้ในเว็บนี้ (ต.ค. 2569):** เขียน DKC OAuth + CAS client + callback ใน PHP เก็บคำขอใน Neon (`approval_requests`) เลิกพึ่ง Portal
+6. **ปรับหน้า Thank you:** เป็นหน้า "ขอบคุณ" + QR กลุ่มไลน์ + ถามก่อนส่งคำขอ (ตกลง/ยกเลิก/ส่งภายหลัง) แสดงข้อมูลหัวหน้ากอง (ชื่อ อีเมล ตำแหน่ง สังกัด)
+7. **ปรับข้อความถึงหัวหน้ากอง:** เพิ่มบรรทัด "ระบบสมัครอบรมคอมพิวเตอร์", ตัดประเภทสมาชิกออก, เพิ่มโหมด HTML ที่เปิด/ปิดด้วย `CAS_MSG_HTML` (ทดสอบแล้ว CAS แสดงได้)
+8. **ตรวจความเป็นไปได้ของ PDF จาก JotForm:** สรุปว่าทำไม่ได้ตรง ๆ (ดู §14)
 
 ---
 
-## สถานะปัจจุบันและงานที่เหลือ
+## 17. สถานะปัจจุบันและงานที่เหลือ
 
 | รายการ | สถานะ |
 |---|---|
-| ย้ายระบบขออนุมัติมาไว้ในเว็บใบประกาศ (OAuth + CAS + Neon) แทน DKC Portal | 🛠 เขียนโค้ดเสร็จ รอ deploy: รัน SQL, ตั้ง env, ลงทะเบียน redirect_uri กับ IT |
-| แท็บ "คำขออนุมัติ" บนเว็บใบประกาศ | ✅ ใช้งานได้ |
-| หน้า `thankyou.html` + `approval_result.php` | ✅ ใช้งานได้ |
-| ทดสอบกับฟอร์มทดสอบ: ประเภทต้องขออนุมัติ → ส่งอัตโนมัติ + หัวหน้ากองอนุมัติจริง | ✅ ผ่าน |
-| ทดสอบประเภท "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ" บนฟอร์มทดสอบ (ไม่ขึ้นคำขอ) | ⏳ รอยืนยัน |
-| ตั้งค่า Thank You Page ของ **ฟอร์มบริษัท `231301336713444`** ตามหัวข้อ JotForm (ตรวจ Unique Name โดยเฉพาะ `input93` ของคอร์ส และลบ Conditions Thank You ถ้ามี) | ⏳ ยังไม่ได้ทำ |
-| ลบข้อมูลทดสอบ: คอร์ส `TEST-ระบบขออนุมัติ` (ลบผู้เรียนที่ผูกอยู่ทั้งหมดตาม cascade), Webhook ในฟอร์มทดสอบ, แถวทดสอบใน D1 `approval_requests` | ⏳ ยังไม่ได้ทำ |
-| เปลี่ยน key ที่เคยปรากฏในบทสนทนา (`ADMIN_API_KEY` ของ Portal ฯลฯ) ใหม่หรือลบ Portal ทิ้ง (ค่าเดิมเคยปรากฏในบทสนทนา) | ⏳ แนะนำให้ทำก่อนใช้งานจริง |
-| ตัวเลือกเสริม: แสดงเวลาสร้างคำขอในหน้า Portal เป็นเวลาไทย / ทำรายงานผู้สมัครที่ยังไม่ส่งคำขอ | 💡 ยังไม่ได้ทำ |
+| ระบบขออนุมัติในเว็บเอง (OAuth + CAS + Neon) ทดสอบกับฟอร์มทดลอง: ส่งคำขอ, หัวหน้ากองกดอนุมัติจริง, สถานะอัปเดตในแท็บ | ✅ ผ่าน |
+| ทดสอบประเภท "ผู้นำบุญ…" (ขึ้นแค่ขอบคุณ + QR ไม่มีกล่องขออนุมัติ) | ✅ ผ่าน |
+| หน้า Thank you ใหม่ (ขอบคุณ + QR + ตกลง/ยกเลิก + ข้อมูลหัวหน้ากอง) | ✅ ใช้งานได้ |
+| ข้อความ HTML ถึงหัวหน้ากอง (`CAS_MSG_HTML=1`) | ✅ ใช้งานได้ |
+| แท็บ "คำขออนุมัติ" อ่านจาก Neon | ✅ ใช้งานได้ |
+| วางรูป QR กลุ่มไลน์จริง (`assets/images/line-qr.png`) | ⏳ รอรูปจริง (ตอนนี้เป็นกรอบสีเทา) |
+| ตั้ง Thank You Page ของ **ฟอร์มบริษัท `231301336713444`** (ตรวจ Unique Name, ลิงก์ §8.1ค, ลบ Conditions, ปิด Send Post Data) และทดสอบ | ⏳ ยังไม่ได้ทำ |
+| ตั้งฟอร์มทดลอง `261701468554460` กลับเป็นลิงก์ Thank You เดิม (หลังทดสอบ POST/PDF) และลบไฟล์ทดสอบชั่วคราวออกจากโปรเจกต์ | ⏳ ตรวจให้แน่ใจ |
+| ลบข้อมูลทดสอบ: คอร์ส `TEST-ระบบขออนุมัติ` (ผู้เรียนที่ผูกอยู่หายตาม cascade), คำขอทดสอบใน `approval_requests`, ถอด Webhook ฟอร์มทดลอง | ⏳ ยังไม่ได้ทำ |
+| เปลี่ยน `ADMIN_API_KEY` ของ Portal (เคยปรากฏในแชต) หรือลบ Portal (`dkc-oauth-portal`) และ D1 ทิ้ง — ยังไม่ได้ลบ ตัดสินใจเก็บไว้ก่อน | ⏳ แนะนำให้ทำ |
+| รายงานผู้สมัครที่ยังไม่ส่งคำขอ / ผูกคำขอกับผู้เรียนแม่นขึ้น (ต้องมี Submission ID ผ่าน POST) | 💡 ไอเดียเสริม ยังไม่ได้ทำ |
+| ให้ผู้สมัครได้สำเนา PDF (อีเมลยืนยันจาก JotForm หรือหน้าสรุปของเราเอง) | 💡 ไอเดียเสริม ยังไม่ได้ทำ |
