@@ -60,7 +60,7 @@ flowchart TD
     JF -->|①②  Airtable Integration\nระบบเดิม ไม่แตะ| AT[(Airtable)]
     JF -->|③ Webhook| WH[jotform_webhook.php]
     WH -->|insert students| DB[(Neon PostgreSQL)]
-    JF -->|④ Redirect URL| TY[thankyou.html]
+    JF -->|④ Redirect + POST| TYP[thankyou.php] --> TY[thankyou.html]
 
     TY -->|ต้องขออนุมัติ + กด ตกลง| AS[approval_start.php]
     AS -->|⑤ ยังไม่ล็อกอิน| OL[oauth_login.php]
@@ -97,7 +97,7 @@ flowchart TD
 1. ผู้สมัครกรอกฟอร์มแล้วกด Submit
 2. JotForm บันทึกเข้า Airtable ตาม integration เดิม (ไม่เกี่ยวกับเว็บนี้)
 3. JotForm ยิง Webhook ไป `backend/jotform_webhook.php` → เว็บนี้บันทึกลง Neon ตาราง `students`
-4. JotForm พาผู้สมัครไป `thankyou.html?name=…&course=…&type=…` (ทำพร้อมกับข้อ 3 แต่เป็นอิสระต่อกัน)
+4. JotForm ส่งข้อมูลทุกช่องแบบ POST ไป `thankyou.php` ซึ่งเก็บใบสรุปไว้ในเบราว์เซอร์ของผู้สมัคร แล้วพาไป `thankyou.html?name=…&course=…&type=…` (ทำพร้อมกับข้อ 3 แต่เป็นอิสระต่อกัน)
 5. ถ้าประเภทสมาชิกต้องขออนุมัติ และผู้สมัครกด **ตกลง** → เว็บพาไปล็อกอิน DKC แล้วส่งคำขอไป CAS
 6. หัวหน้ากองกดอนุมัติ/ไม่อนุมัติ → CAS เรียก `cas_callback.php` กลับมา → เว็บอัปเดตสถานะใน Neon
 
@@ -157,8 +157,17 @@ flowchart LR
 
 ### 3.3 หน้า Thank you ทำงานอย่างไร (`thankyou.html`)
 
-JotForm ตั้งให้ redirect มาที่หน้านี้พร้อมพารามิเตอร์ (ดู §8.1):
-`thankyou.html?name=<ชื่อ นามสกุล>&course=<คอร์ส>&type=<ประเภทสมาชิก>`
+JotForm ตั้งให้ redirect แบบ **Send Post Data** มาที่ `thankyou.php` (ดู §8.1ค)
+```
+JotForm ──POST (ทุกช่อง + submission_id)──▶ thankyou.php
+   ├─ JotformFields::extract() แกะค่าตาม field id (ใช้ mapping เดียวกับ webhook)
+   ├─ ส่ง HTML เล็ก ๆ ที่เขียนใบสรุปลง sessionStorage['jf_summary'] ของแท็บนั้น
+   └─ location.replace('thankyou.html?name=<ชื่อ นามสกุล>&course=<คอร์ส>&type=<ประเภท>')
+```
+- **ใบสรุปข้อมูลการสมัคร:** ถ้ามี `jf_summary` หน้า Thank you จะแสดงใบสรุปทุกช่องที่กรอก (แบ่งหมวด: ข้อมูลผู้สมัคร / การศึกษา / หน่วยงาน / ช่องทางติดต่อ / การสมัคร) พร้อมเลขที่การสมัคร (`submission_id`) ปุ่ม **ดาวน์โหลด PDF** (html2canvas + jsPDF โหลดจาก cdnjs ตอนกด แปลงใบสรุปเป็นภาพลง A4 ภาษาไทยไม่เพี้ยน; ข้อความใน PDF เลือก/คัดลอกไม่ได้) และปุ่ม **พิมพ์** (`@media print` พิมพ์เฉพาะใบสรุป / บันทึกเป็น PDF ได้)
+- **ความเป็นส่วนตัว:** เซิร์ฟเวอร์ไม่บันทึกและไม่ log ข้อมูลใบสรุป ข้อมูลอยู่เฉพาะในแท็บของผู้สมัคร (ปิดแท็บแล้วหาย) ไม่แสดงถ้าชื่อใน URL ไม่ตรงกับใบสรุป ลิงก์มีแค่ name/course/type เหมือนเดิม
+- รีเฟรชหน้าได้โดยไม่ถามส่งฟอร์มซ้ำ และกลับมาจากล็อกอิน DKC ในแท็บเดิมก็ยังเห็นใบสรุป
+- ถ้าเปิด `thankyou.php` แบบ GET หรือ JotForm ยังตั้งเป็นลิงก์ `thankyou.html?...` แบบเดิม หน้าทำงานเหมือนเดิมแต่ไม่มีใบสรุป
 
 หน้านี้เป็นไฟล์เดียว (HTML+CSS+JS) **เสมอจะแสดงส่วนหลัก** คือ "ขอบคุณ" ตัวใหญ่ + ชื่อ + หลักสูตร + กรอบ QR Code กลุ่มไลน์ (`assets/images/line-qr.png` ถ้าไม่มีไฟล์จะเป็นกรอบสีเทา) แล้วเพิ่ม **กล่องขออนุมัติ** ตามสถานะ:
 
@@ -379,7 +388,8 @@ sequenceDiagram
 webcertificate/
 │   Dockerfile
 │   index.html                หน้าแรก + Admin Panel (markup ล้วน)
-│   thankyou.html             หน้า Thank you (ไฟล์เดียว มี CSS/JS ในตัว)
+│   thankyou.php              ปลายทาง POST ของ JotForm → เก็บใบสรุปใน sessionStorage → thankyou.html
+│   thankyou.html             หน้า Thank you + ใบสรุป/PDF (ไฟล์เดียว มี CSS/JS ในตัว)
 │   README.md
 │   .env                      (เฉพาะเครื่อง local — ห้าม commit)
 │
@@ -405,7 +415,8 @@ webcertificate/
 │       ├── load_env.php, require_admin.php, error_handler.php
 │       ├── AirtableClient.php, CourseRepository.php, StudentRepository.php
 │       ├── ApprovalRepository.php   ตาราง approval_requests
-│       ├── ApprovalMessage.php      สร้างข้อความถึงหัวหน้ากอง (ธรรมดา/HTML)
+│       ├── ApprovalMessage.php      สร้างข้อความถึงหัวหน้ากอง (ธรรมดา/HTML/LINE Flex)
+│       ├── JotformFields.php        mapping ฟิลด์ฟอร์มบริษัท (ใช้ร่วม webhook + thankyou.php)
 │       ├── DkcOAuth.php             ตัวเชื่อม DKC OAuth
 │       ├── CasClient.php            ตัวเชื่อม CAS
 │       └── user_session.php         session ผู้ใช้ DKC + ตัวช่วย redirect
@@ -422,7 +433,8 @@ webcertificate/
 |---|---|
 | `Dockerfile` | `php:8.2-apache` + `pdo_pgsql`, คัดลอกโค้ดเข้า `/var/www/html`, ให้ Apache ฟังพอร์ต `PORT` ที่ Render กำหนด |
 | `index.html` | markup ของหน้าดาวน์โหลดใบประกาศ + Admin Panel (3 แท็บ: ดาวน์โหลด / จัดการข้อมูล / คำขออนุมัติ) ไม่มี CSS/JS ฝัง |
-| `thankyou.html` | หน้า Thank you ตามเงื่อนไขใน §3.3 |
+| `thankyou.php` | รับ POST จาก JotForm → ใบสรุปลง sessionStorage → redirect ไป `thankyou.html` (GET → ส่งต่อพร้อม query เดิม) |
+| `thankyou.html` | หน้า Thank you ตามเงื่อนไขใน §3.3 + ใบสรุปข้อมูลการสมัคร (ดาวน์โหลด PDF / พิมพ์) |
 | `assets/js/certificate.js` | โหลดข้อมูลจาก `api.php`, dropdown ปี/คอร์ส/ชื่อ, พรีวิว, QR, ดาวน์โหลด PNG |
 | `assets/js/auth.js` | modal ล็อกอิน/ออกจากระบบแอดมิน, เก็บสถานะใน `sessionStorage`, แสดง/ซ่อนแท็บแอดมิน |
 | `assets/js/admin.js` | ตรรกะแอดมินทั้งหมด: ตารางคอร์ส/ผู้เรียน, modal เพิ่ม-แก้ไข, เปิดรับสมัคร, นำเข้า Airtable, แท็บคำขออนุมัติ (`loadApprovalsPage`, `fetchApprovals`, `formatThaiDateTime`) |
@@ -435,7 +447,7 @@ webcertificate/
 | `auth.php` | `action=login/logout/check` ตั้ง `$_SESSION['is_admin']` |
 | `admin_api.php` | แอดมินเท่านั้น (ผ่าน `require_admin.php`) ดูตาราง action ใน §7 |
 | `active_courses.php` | แอดมินเท่านั้น: `list`, `toggle`, `sync_jotform` (ส่งชื่อยาวของคอร์สที่เปิดไป JotForm API) — เก็บไว้เผื่ออนาคต |
-| `jotform_webhook.php` | สาธารณะ (JotForm เรียก): แกะ `rawRequest` → หา course → insert `students` |
+| `jotform_webhook.php` | สาธารณะ (JotForm เรียก): แกะ `rawRequest` ด้วย `JotformFields` → หา course → insert `students` |
 | `approval_start.php` | รับ `name/course/type` → สร้าง `ref` → เก็บ session → ไป `oauth_login.php` หรือ `approval_submit.php` |
 | `oauth_login.php` | สร้าง `state` แล้ว redirect ไป `/oauth/authorize` |
 | `oauth_callback.php` | ตรวจ state, แลก token, ดึง username, เก็บ session → `approval_submit.php` |
@@ -453,7 +465,8 @@ webcertificate/
 | `CourseRepository.php` | SQL ของ `courses`/`active_courses`: `listWithStudentCount`, `listWithActiveFlag`, `listActiveLongKeys`, `findByShortName`, `findByShortNameOrLongKey`, `add/update/delete`, `activate/deactivate` |
 | `StudentRepository.php` | SQL ของ `students`: `paginate`, `find`, `add/update/delete`, `insertFromWebhook`, `insertFromAirtable`, `listAllWithCourse`, ตัวช่วยกันนำเข้าซ้ำ |
 | `ApprovalRepository.php` | SQL ของ `approval_requests`: `statusKind`, `find`, `insert` (ON CONFLICT DO NOTHING), `updateStatus`, `findStudentId`, `listPage` (ตัวกรองผ่าน `buildWhere`), `filterOptions`, `listAll` (CSV), `deleteMany` |
-| `ApprovalMessage.php` | `ApprovalMessage::build($name,$course)` → `['plain'=>…, 'html'=>…]` |
+| `ApprovalMessage.php` | `ApprovalMessage::build($name,$course)` → `['plain'=>…, 'html'=>…, 'flex'=>…]` |
+| `JotformFields.php` | `FIELDS` (field id, unique name, ชนิด, หัวข้อ, หมวด), `extract($raw)` จับคู่ด้วย `q<id>_` หรือ unique name, `labels()` |
 | `DkcOAuth.php` | `fromEnv()`, `authorizeUrl($state)`, `exchangeCode($code)`, `fetchUser($token)` (ต้องมี `username`) |
 | `CasClient.php` | `fromEnv()`, `sendRequest(…)`, `fetchStatus($ref)`, `isOk($r)` |
 | `user_session.php` | `user_session_start()`, `dkc_app_url()`, `dkc_redirect()`, `dkc_redirect_thankyou()` (แนบ name/course/type จาก session), `dkc_clip()` |
@@ -582,23 +595,22 @@ Index: `requester_ad`, `created_at DESC`, `status`, `student_id`
 | วันที่ส่งแบบฟอร์ม | 9 | `q9_date` (object) |
 | ค่าสมัครอบรม | 104 | `q104_input104` |
 
-> ถ้า field id เปลี่ยน (เช่น โคลนฟอร์ม) ต้องแก้ใน `jotform_webhook.php` ดึง id จริงได้จาก `GET https://api.jotform.com/form/{formId}/questions?apiKey=...`
+> ถ้า field id เปลี่ยน (เช่น โคลนฟอร์ม) ต้องแก้ใน `backend/lib/JotformFields.php` (ที่เดียว ใช้ทั้ง webhook และใบสรุป) ดึง id จริงได้จาก `GET https://api.jotform.com/form/{formId}/questions?apiKey=...`
 
 #### (ค) Thank You Page → เชื่อมกับหน้า Thank you ของเรา
 **Settings → Thank You Page → Redirect to an external link after submission** ใส่ URL:
 ```
-https://comtrain-webcertificate.onrender.com/thankyou.html?name={typeA110}%20{input111}&course={input93}&type={typeA}
+https://comtrain-webcertificate.onrender.com/thankyou.php
 ```
-- ตัวแปรในปีกกาคือ **Unique Name** ของฟิลด์: `typeA110` (ชื่อ), `input111` (นามสกุล), `input93` (คอร์ส), `typeA` (ประเภทสมาชิก) — ต้องตรวจให้ตรงกับฟอร์มที่ใช้ (Properties → Advanced → Unique Name)
-- `%20` = ช่องว่างระหว่างชื่อกับนามสกุล
+- **เปิด "Send Post Data" (Redirect with HTTP POST)** — `thankyou.php` ใช้ค่าที่ POST มาสร้างใบสรุปและชื่อ/คอร์ส/ประเภท (ไม่ต้องใส่ตัวแปร `{...}` ในลิงก์แล้ว)
 - **ไม่ต้องใช้ Conditions** (ถ้าเคยตั้ง "Change Thank You page" ให้ลบ มิฉะนั้นผู้สมัครจะข้ามหน้านี้)
-- **ปิด "Send Post Data / Redirect with HTTP POST"** (ถ้าเปิด JotForm จะส่งแบบ POST ซึ่ง `thankyou.html` เป็นไฟล์สถิตรับไม่ได้)
+- ลิงก์แบบเดิม `thankyou.html?name={typeA110}%20{input111}&course={input93}&type={typeA}` (ปิด Send Post Data) ยังใช้ได้ แต่จะไม่มีใบสรุป/PDF
 - ประเภทสมาชิกที่ **ไม่ต้องขออนุมัติ** ต้องขึ้นต้นด้วยคำว่า "ผู้นำบุญ" (เช่น "ผู้นำบุญ สาธุชนทั่วไป อื่น ๆ") — ถ้าเปลี่ยนข้อความตัวเลือกในฟอร์ม ต้องแก้เงื่อนไขใน `thankyou.html` ด้วย
 - ตั้ง/แก้ตอนไม่มีคนกรอกอยู่ และทดสอบ 2 กรณี: ประเภทผู้นำบุญ และประเภทอื่น
 
 > ⚠️ ถ้าโคลนฟอร์มมาทดสอบ ให้ลบ Integrations (Airtable/Webhook) ที่ติดมาก่อน มิฉะนั้นข้อมูลทดสอบจะไหลเข้าระบบจริง
 
-> **ข้อมูลที่ JotForm ส่งเมื่อเปิด "Send Post Data"** (ทดสอบแล้ว ไม่ได้ใช้ในระบบปัจจุบัน): มี `submission_id`, `formID`, และค่าฟิลด์เกือบทั้งหมด แต่ **ไม่มีลิงก์/hash ของไฟล์ PDF** ดูเหตุผลที่ §14
+> **ข้อมูลที่ JotForm ส่งเมื่อเปิด "Send Post Data"** (ใช้กับ `thankyou.php`): มี `submission_id`, `formID` และค่าฟิลด์เกือบทั้งหมด แต่ **ไม่มีลิงก์/hash ของไฟล์ PDF ของ JotForm** ใบสรุปจึงสร้างเองบนเว็บ (§3.3, §14)
 
 #### (ง) ฟอร์มทดลอง `261701468554460`
 ใช้ทดสอบระบบขออนุมัติ มีคอร์สทดสอบ `TEST-ระบบขออนุมัติ` ใน dropdown และใน Neon ต้องถอด Webhook/Integration ออกหรือลบคอร์ส/ข้อมูลทดสอบก่อนปิดงาน (ดู §17)
@@ -678,7 +690,8 @@ Base `appI37LT5wFrI4ITA` ใช้เป็นระบบเดิมของ�
 **เช็คลิสต์เปิดใช้กับฟอร์มบริษัท**
 - [ ] Unique Name ของฟอร์มบริษัทตรงกับ `typeA110`, `input111`, `input93`, `typeA`
 - [ ] ตัวเลือกประเภทที่ไม่ต้องขออนุมัติขึ้นต้นด้วย "ผู้นำบุญ"
-- [ ] ตั้ง Thank You Page เป็น redirect (ลิงก์ใน §8.1ค), ปิด Send Post Data, ลบ Thank You Conditions
+- [ ] ตั้ง Thank You Page เป็น redirect ไป `thankyou.php` (§8.1ค), **เปิด** Send Post Data, ลบ Thank You Conditions
+- [ ] ทดสอบกรอกจริง 1 ครั้งแล้วตรวจว่าใบสรุปแสดงครบทุกช่อง (ถ้าช่องไหนว่างให้ตรวจ mapping ใน `JotformFields.php`)
 - [ ] วางรูป QR จริงที่ `assets/images/line-qr.png`
 - [ ] ทดสอบ 2 กรณี (ประเภทต้องขออนุมัติ / ผู้นำบุญ) — ระวัง: คำขอจะส่งอีเมลถึงหัวหน้ากองจริงของบัญชีที่ล็อกอิน และข้อมูลทดสอบเข้า Airtable+Neon จริง ต้องลบหลังทดสอบ
 - [ ] เปลี่ยนคีย์ที่เคยรั่ว / ลบ Portal (§17)
@@ -710,6 +723,7 @@ Base `appI37LT5wFrI4ITA` ใช้เป็นระบบเดิมของ�
 | เปลี่ยน `ApproveType` (1 → 2) | `approval_submit.php` (พารามิเตอร์ที่ส่งเข้า `sendRequest`) |
 | เปลี่ยนกฎว่าประเภทไหนต้องขออนุมัติ | `thankyou.html` ตัวแปร `needsApproval` (ตอนนี้ = ไม่ขึ้นต้นด้วย "ผู้นำบุญ") |
 | เปลี่ยนข้อความ/สไตล์หน้า Thank you | `thankyou.html` (CSS+JS ในไฟล์เดียว) |
+| เพิ่ม/ลด/เปลี่ยนหัวข้อในใบสรุป PDF | `backend/lib/JotformFields.php` (`FIELDS`) ส่วนหน้าตาใบอยู่ที่ `buildSheet()` และ CSS `.sheet` ใน `thankyou.html` |
 | เปลี่ยนรูป QR กลุ่มไลน์ | วางไฟล์ `assets/images/line-qr.png` ทับ (ถ้าเปลี่ยนชื่อไฟล์ แก้ `img.src` ใน `thankyou.html`) |
 | เพิ่มข้อมูลของหัวหน้ากองที่หน้า Thank you | `approval_result.php` (อ่านจาก `cas_data`) + `resultView()` ใน `thankyou.html` |
 | เพิ่มคอลัมน์ในแท็บ "คำขออนุมัติ" | `ApprovalRepository::listPage()` + `fetchApprovals()` และหัวตารางใน `loadApprovalsPage()` (`assets/js/admin.js`) |
@@ -735,7 +749,7 @@ Base `appI37LT5wFrI4ITA` ใช้เป็นระบบเดิมของ�
 - **ไม่มี Submission ID ที่ฝั่งเว็บ** (JotForm redirect แบบ URL ไม่ส่ง ID) รหัสอ้างอิงจึงสร้างเอง ส่งฟอร์มซ้ำ = คำขอใหม่แยกกัน และการผูก `student_id` เป็นการเดาด้วยชื่อ+คอร์ส
 - **ชื่อ/คอร์ส/ประเภทอยู่ใน URL** ของ Thank you และ `approval_start.php` (ผู้ที่แชร์ลิงก์จะเห็นชื่อ)
 - **การตัดสินประเภทที่ต้องขออนุมัติทำฝั่ง browser** ผู้ที่แก้ลิงก์เองอาจข้ามหรือเรียกได้เอง ยอมรับได้เพราะเป็นเพียงการติดตามสถานะ
-- **ไม่มี PDF สรุปจาก JotForm บนหน้า Thank you** → ลิงก์ PDF ของ JotForm (`getSubmissionPDFv2&hash=…`) ใช้ `hash` ที่เข้ารหัสโดย JotForm เองและส่งมาเฉพาะหน้า Thank You ของ JotForm ไม่อยู่ใน redirect/POST/Webhook และลิงก์รูปแบบเก่า (`getSubmissionPDF&sid=…`) ตอบ "not authorized" ทางเลือกที่เหลือ: ให้ JotForm ส่งอีเมลยืนยันพร้อมแนบ PDF (ตั้งในหน้า Emails) หรือทำหน้าสรุปข้อมูลของเราเองจาก POST (`submission_id` + ฟิลด์ครบ ต้องเปลี่ยน Thank You เป็น POST ผ่านไฟล์ PHP ตัวกลาง)
+- **ใช้ PDF ของ JotForm เองไม่ได้** → ลิงก์ PDF ของ JotForm (`getSubmissionPDFv2&hash=…`) ใช้ `hash` ที่ส่งมาเฉพาะหน้า Thank You ของ JotForm เอง ไม่อยู่ใน redirect/POST/Webhook และลิงก์แบบเก่า (`getSubmissionPDF&sid=…`) ตอบ "not authorized" **จึงสร้างใบสรุปเองจาก POST** (§3.3) — PDF เป็นภาพ (ข้อความเลือก/คัดลอกไม่ได้) และใบสรุปอยู่เฉพาะในแท็บที่สมัคร ปิดแท็บแล้วเปิดใหม่ไม่ได้
 - ผู้ที่เริ่มสมัครแล้วปิดหน้าก่อนส่งคำขอ จะมีข้อมูลใน Neon แต่ไม่มีคำขอในแท็บ (ยังไม่มีรายงานเทียบ)
 - `approval_result.php` เป็นสาธารณะและไม่มี rate limit (ตอบเฉพาะสถานะ+ข้อมูลหัวหน้ากอง และ `ref` เดายาก)
 - **Render แผนฟรีหลับหลัง idle 15 นาที** แก้ด้วย UptimeRobot ปิงทุก 5 นาที ถ้าหยุดปิง คนแรกจะรอ ~30–50 วินาที
@@ -798,9 +812,9 @@ Base `appI37LT5wFrI4ITA` ใช้เป็นระบบเดิมของ�
 | ข้อความ HTML ถึงหัวหน้ากอง (`CAS_MSG_HTML=1`) | ✅ ใช้งานได้ |
 | แท็บ "คำขออนุมัติ" อ่านจาก Neon + ตัวกรอง (วันที่/คอร์ส/ปี) + ลบหลายรายการ + ดูรายละเอียด + ตรวจสถานะจาก CAS + ส่งออก CSV | ✅ ใช้งานได้ |
 | วางรูป QR กลุ่มไลน์จริง (`assets/images/line-qr.png`) | ⏳ รอรูปจริง (ตอนนี้เป็นกรอบสีเทา) |
-| ตั้ง Thank You Page ของ **ฟอร์มบริษัท `231301336713444`** (ตรวจ Unique Name, ลิงก์ §8.1ค, ลบ Conditions, ปิด Send Post Data) และทดสอบ | ⏳ ยังไม่ได้ทำ |
+| ตั้ง Thank You Page ของ **ฟอร์มบริษัท `231301336713444`** (ลิงก์ `thankyou.php` §8.1ค, เปิด Send Post Data, ลบ Conditions) และทดสอบ | ⏳ ยังไม่ได้ทำ |
 | ตั้งฟอร์มทดลอง `261701468554460` กลับเป็นลิงก์ Thank You เดิม (หลังทดสอบ POST/PDF) และลบไฟล์ทดสอบชั่วคราวออกจากโปรเจกต์ | ⏳ ตรวจให้แน่ใจ |
 | ลบข้อมูลทดสอบ: คอร์ส `TEST-ระบบขออนุมัติ` (ผู้เรียนที่ผูกอยู่หายตาม cascade), คำขอทดสอบใน `approval_requests`, ถอด Webhook ฟอร์มทดลอง | ⏳ ยังไม่ได้ทำ |
 | เปลี่ยน `ADMIN_API_KEY` ของ Portal (เคยปรากฏในแชต) หรือลบ Portal (`dkc-oauth-portal`) และ D1 ทิ้ง — ยังไม่ได้ลบ ตัดสินใจเก็บไว้ก่อน | ⏳ แนะนำให้ทำ |
 | รายงานผู้สมัครที่ยังไม่ส่งคำขอ / ผูกคำขอกับผู้เรียนแม่นขึ้น (ต้องมี Submission ID ผ่าน POST) | 💡 ไอเดียเสริม ยังไม่ได้ทำ |
-| ให้ผู้สมัครได้สำเนา PDF (อีเมลยืนยันจาก JotForm หรือหน้าสรุปของเราเอง) | 💡 ไอเดียเสริม ยังไม่ได้ทำ |
+| ใบสรุปข้อมูลการสมัคร + ดาวน์โหลด PDF บนหน้า Thank you (`thankyou.php`) | ✅ โค้ดพร้อม — ⏳ รอตั้ง JotForm เป็น `thankyou.php` + Send Post Data แล้วทดสอบกับฟอร์มจริง |

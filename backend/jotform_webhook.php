@@ -9,6 +9,7 @@ require_once __DIR__ . '/lib/error_handler.php';
 require_once __DIR__ . '/../database/config.php';
 require_once __DIR__ . '/lib/CourseRepository.php';
 require_once __DIR__ . '/lib/StudentRepository.php';
+require_once __DIR__ . '/lib/JotformFields.php';
 
 function jf_log($message) {
     error_log('[jotform_webhook] ' . $message);
@@ -26,34 +27,26 @@ try {
         $raw = [];
     }
 
-    // แกะฟิลด์ตาม field id ของฟอร์มบริษัท (231301336713444)
-    $first_name      = trim($raw['q110_typeA110'] ?? '');
-    $last_name       = trim($raw['q111_input111'] ?? '');
-    $member_type     = trim($raw['q17_typeA'] ?? '');
-    $age_or_royal    = trim($raw['q60_input60'] ?? ''); // "อายุ / พรรษาที่" รวมช่องเดียว
-    $education_level = trim($raw['q61_input61'] ?? '');
-    $faculty         = trim($raw['q90_input90'] ?? '');
-    $major           = trim($raw['q79_input79'] ?? '');
-    $institution     = trim($raw['q75_input75'] ?? '');
-    $department      = trim($raw['q31_typeA31'] ?? '');
-    $office          = trim($raw['q32_input59'] ?? '');
-    $position        = trim($raw['q33_typeA33'] ?? '');
-    $phone_internal  = trim($raw['q38_input38']['full'] ?? '');
-    $phone_mobile    = trim($raw['q39_phoneNumber']['full'] ?? '');
-    $email           = trim($raw['q82_email82'] ?? '');
-    $attendance      = trim($raw['q104_input104'] ?? '');
-
-    $birth_date = null;
-    if (!empty($raw['q98_input98']['year']) && !empty($raw['q98_input98']['month']) && !empty($raw['q98_input98']['day'])) {
-        $birth_date = $raw['q98_input98']['year'] . '-' . $raw['q98_input98']['month'] . '-' . $raw['q98_input98']['day'];
-    }
-
-    $apply_date = null;
-    if (!empty($raw['q9_date']['year']) && !empty($raw['q9_date']['month']) && !empty($raw['q9_date']['day'])) {
-        $apply_date = $raw['q9_date']['year'] . '-' . $raw['q9_date']['month'] . '-' . $raw['q9_date']['day'];
-    }
-
-    $courseName = trim($raw['q93_input93'] ?? '');
+    // แกะฟิลด์ตาม field id ของฟอร์มบริษัท (231301336713444) — mapping อยู่ใน lib/JotformFields.php
+    $f = JotformFields::extract($raw);
+    $first_name      = $f['first_name'];
+    $last_name       = $f['last_name'];
+    $member_type     = $f['member_type'];
+    $age_or_royal    = $f['age']; // "อายุ / พรรษาที่" รวมช่องเดียว
+    $education_level = $f['education_level'];
+    $faculty         = $f['faculty'];
+    $major           = $f['major'];
+    $institution     = $f['institution'];
+    $department      = $f['department'];
+    $office          = $f['office'];
+    $position        = $f['position'];
+    $phone_internal  = $f['phone_internal'];
+    $phone_mobile    = $f['phone_mobile'];
+    $email           = $f['email'];
+    $attendance      = $f['fee'];
+    $birth_date      = $f['birth_date'] !== '' ? $f['birth_date'] : null;
+    $apply_date      = $f['apply_date'] !== '' ? $f['apply_date'] : null;
+    $courseName      = $f['course'];
 
     if ($first_name === '') {
         jf_log('ERROR: ไม่มีชื่อผู้สมัคร (first_name ว่าง) - raw: ' . $rawRequestJson);

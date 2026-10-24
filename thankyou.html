@@ -78,6 +78,42 @@
       }
       .btn.ghost { background: #fff; color: var(--text2); border-color: #cbd5e1; }
       .ref { margin-top: 18px; font-size: 11px; color: #94a3b8; word-break: break-all; }
+
+      /* ===== ใบสรุปข้อมูลการสมัคร ===== */
+      body.has-summary .card { max-width: 600px; }
+      .sum-note { font-size: 13px; margin: 0 0 12px; }
+      .sheet {
+        text-align: left; background: #fff; border: 1px solid var(--border);
+        border-radius: 12px; padding: 18px 18px 14px; font-size: 13.5px; color: var(--text);
+      }
+      .sheet-head { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 2px solid var(--blue); }
+      .sheet-head img { width: 44px; height: 44px; object-fit: contain; }
+      .sheet-org { font-size: 12px; color: var(--text2); }
+      .sheet-title { font-size: 16px; font-weight: 600; color: #1e3a5f; }
+      .sheet-course { margin: 12px 0 4px; padding: 10px 12px; background: #eff6ff; border-radius: 8px; }
+      .sheet-course small { display: block; color: var(--text2); font-size: 11.5px; }
+      .sheet-course b { font-weight: 600; word-break: break-word; }
+      .sheet-sec { margin: 14px 0 6px; font-size: 12px; font-weight: 600; color: var(--blue); letter-spacing: .02em; }
+      .sheet-dl { display: grid; grid-template-columns: 170px 1fr; border-top: 1px solid var(--border); }
+      .sheet-dl > div { padding: 6px 4px; border-bottom: 1px solid var(--border); word-break: break-word; }
+      .sheet-dl .k { color: var(--text2); }
+      .sheet-foot { margin-top: 14px; font-size: 11.5px; color: #94a3b8; line-height: 1.6; }
+      /* สำเนาที่ใช้สร้าง PDF: กว้างคงที่ ซ่อนนอกจอ */
+      .sheet.export { position: fixed; left: -10000px; top: 0; width: 760px; border: 0; border-radius: 0; padding: 28px 32px; font-size: 15px; }
+      .sheet.export .sheet-dl { grid-template-columns: 220px 1fr; }
+      @media (max-width: 480px) {
+        .sheet { padding: 14px 12px 10px; }
+        .sheet-dl { grid-template-columns: 1fr; }
+        .sheet-dl .k { border-bottom: 0; padding-bottom: 0; font-size: 12px; }
+        .sheet-dl .v { padding-top: 2px; }
+      }
+      @media print {
+        body { background: #fff; padding: 0; display: block; }
+        body * { visibility: hidden; }
+        #sheet, #sheet * { visibility: visible; }
+        #sheet { position: absolute; left: 0; top: 0; width: 100%; border: 0; padding: 0; }
+        .sheet-dl { grid-template-columns: 200px 1fr; }
+      }
     </style>
   </head>
   <body>
@@ -92,6 +128,17 @@
       <hr />
       <div class="qr-title">สแกน QR Code เพื่อเข้ากลุ่มไลน์</div>
       <div class="qr-box" id="qrBox"><span>QR Code<br />กลุ่มไลน์</span></div>
+
+      <section id="summary" hidden>
+        <hr />
+        <div class="qr-title">ใบสรุปข้อมูลการสมัคร</div>
+        <p class="sum-note">ตรวจสอบข้อมูลที่ท่านกรอก และดาวน์โหลดเก็บไว้เป็นหลักฐาน</p>
+        <div class="sheet" id="sheet"></div>
+        <div class="actions">
+          <button type="button" class="btn" id="pdfBtn">ดาวน์โหลด PDF</button>
+          <button type="button" class="btn ghost" id="printBtn">พิมพ์</button>
+        </div>
+      </section>
 
       <div id="approval" hidden>
         <hr />
@@ -156,6 +203,110 @@
         img.alt = "QR Code กลุ่มไลน์";
         img.onload = function () { $("qrBox").textContent = ""; $("qrBox").appendChild(img); };
         img.src = "assets/images/line-qr.png";
+
+        // ===== ใบสรุปข้อมูลการสมัคร =====
+        // thankyou.php (JotForm "Send Post Data") เก็บข้อมูลไว้ใน sessionStorage ของแท็บนี้ — ไม่มีบนเซิร์ฟเวอร์
+        var summary = null;
+        try { summary = JSON.parse(sessionStorage.getItem("jf_summary") || "null"); } catch (e) {}
+        // ไม่แสดงถ้าเป็นใบของผู้สมัครคนอื่นที่ค้างอยู่ในแท็บเดียวกัน
+        if (summary && who && summary.name && summary.name !== who) summary = null;
+
+        function buildSheet(s) {
+          var sheet = el("div", "sheet");
+          var head = el("div", "sheet-head");
+          var logo = new Image();
+          logo.src = "assets/images/logo.png";
+          logo.alt = "";
+          head.appendChild(logo);
+          var ht = el("div");
+          ht.appendChild(el("div", "sheet-org", "ศูนย์อบรมคอมพิวเตอร์ วัดพระธรรมกาย"));
+          ht.appendChild(el("div", "sheet-title", "ใบสรุปข้อมูลการสมัครอบรม"));
+          head.appendChild(ht);
+          sheet.appendChild(head);
+
+          if (s.course) {
+            var c = el("div", "sheet-course");
+            c.appendChild(el("small", "", "หลักสูตรที่สมัคร"));
+            c.appendChild(el("b", "", s.course));
+            sheet.appendChild(c);
+          }
+
+          var section = "", dl = null;
+          (s.rows || []).forEach(function (r) {
+            if (r.label === "โปรแกรมที่ต้องการสมัครเรียน") return; // แสดงด้านบนแล้ว
+            if (r.section !== section || !dl) {
+              section = r.section;
+              sheet.appendChild(el("div", "sheet-sec", section));
+              dl = el("div", "sheet-dl");
+              sheet.appendChild(dl);
+            }
+            dl.appendChild(el("div", "k", r.label));
+            dl.appendChild(el("div", "v", r.value));
+          });
+
+          var foot = el("div", "sheet-foot");
+          if (s.submission) foot.appendChild(el("div", "", "เลขที่การสมัคร: " + s.submission));
+          if (s.submitted_at) foot.appendChild(el("div", "", "ส่งแบบฟอร์มเมื่อ: " + s.submitted_at + " น."));
+          foot.appendChild(el("div", "", "เอกสารนี้สร้างจากข้อมูลที่ท่านกรอกในแบบฟอร์มสมัครอบรม"));
+          sheet.appendChild(foot);
+          return sheet;
+        }
+
+        function loadScript(src) {
+          return new Promise(function (resolve, reject) {
+            var s = document.createElement("script");
+            s.src = src;
+            s.onload = resolve;
+            s.onerror = function () { reject(new Error("load " + src)); };
+            document.head.appendChild(s);
+          });
+        }
+
+        function downloadPdf() {
+          var btn = $("pdfBtn");
+          var label = btn.textContent;
+          btn.disabled = true;
+          btn.textContent = "กำลังสร้าง PDF…";
+          var clone = buildSheet(summary);
+          clone.className += " export";
+          document.body.appendChild(clone);
+          var libs = Promise.all([
+            window.html2canvas ? 0 : loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"),
+            window.jspdf ? 0 : loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"),
+          ]);
+          var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+          Promise.all([libs, ready])
+            .then(function () { return html2canvas(clone, { scale: 2, backgroundColor: "#ffffff", useCORS: true }); })
+            .then(function (canvas) {
+              // วางภาพกว้าง 190 มม. บน A4 ถ้ายาวเกินหน้าจะแบ่งเป็นหลายหน้า
+              var pdf = new window.jspdf.jsPDF({ unit: "mm", format: "a4" });
+              var m = 10, w = 210 - m * 2, pageH = 297 - m * 2;
+              var h = canvas.height * w / canvas.width;
+              var data = canvas.toDataURL("image/jpeg", 0.92);
+              for (var y = 0; y < h; y += pageH) {
+                if (y > 0) pdf.addPage();
+                pdf.addImage(data, "JPEG", m, m - y, w, h);
+              }
+              var safe = (summary.name || "ผู้สมัคร").replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, "_");
+              pdf.save("ใบสมัครอบรม_" + safe + ".pdf");
+            })
+            .catch(function () { alert("สร้าง PDF ไม่สำเร็จ กรุณาลองใหม่ หรือใช้ปุ่ม \"พิมพ์\" แล้วเลือกบันทึกเป็น PDF"); })
+            .then(function () {
+              clone.remove();
+              btn.disabled = false;
+              btn.textContent = label;
+            });
+        }
+
+        if (summary && summary.rows && summary.rows.length) {
+          var sheet = buildSheet(summary);
+          sheet.id = "sheet";
+          $("sheet").replaceWith(sheet);
+          $("summary").hidden = false;
+          document.body.classList.add("has-summary");
+          $("pdfBtn").onclick = downloadPdf;
+          $("printBtn").onclick = function () { window.print(); };
+        }
 
         var needsApproval = !!(mtype && mtype.indexOf("ผู้นำบุญ") !== 0 && who && course);
         var startUrl = "backend/approval_start.php?" + new URLSearchParams({ name: who, course: course, type: mtype }).toString();
