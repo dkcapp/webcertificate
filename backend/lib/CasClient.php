@@ -44,10 +44,24 @@ class CasClient
             && !empty($r['data']) && is_array($r['data']);
     }
 
-    /** ส่งคำขอ คืน array ตอบกลับของ CAS (null ถ้าไม่ใช่ JSON) */
-    public function sendRequest(string $ref, int $approveType, string $subject, string $message, string $requesterAd, string $callbackUrl): ?array
-    {
-        return $this->post($this->requestUrl, [
+    /**
+     * ส่งคำขอ คืน array ตอบกลับของ CAS (null ถ้าไม่ใช่ JSON)
+     *
+     * @param string      $message     plain-text fallback (ทุก channel)
+     * @param string|null $htmlMessage HTML สำหรับอีเมล (MsgHTMLForHead) — null = ไม่ส่ง
+     * @param array|null  $flexMessage LINE Flex body content (MsgFlexForHead) — null = ไม่ส่ง
+     */
+    public function sendRequest(
+        string $ref,
+        int $approveType,
+        string $subject,
+        string $message,
+        string $requesterAd,
+        string $callbackUrl,
+        ?string $htmlMessage = null,
+        ?array  $flexMessage = null
+    ): ?array {
+        $payload = [
             'client_id'        => $this->clientId,
             'client_secret'    => $this->clientSecret,
             'ExternalRefID'    => $ref,
@@ -56,7 +70,14 @@ class CasClient
             'MsgForHead'       => $message,
             'Requester_ADUser' => $requesterAd,
             'CallbackURL'      => $callbackUrl,
-        ]);
+        ];
+        if ($htmlMessage !== null) {
+            $payload['MsgHTMLForHead'] = $htmlMessage;
+        }
+        if ($flexMessage !== null) {
+            $payload['MsgFlexForHead'] = $flexMessage;
+        }
+        return $this->post($this->requestUrl, $payload);
     }
 
     /** ถามสถานะจริง คืน data ที่มี Status หรือ null ถ้าถามไม่สำเร็จ */

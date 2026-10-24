@@ -45,13 +45,18 @@ try {
 
     $subject = mb_substr("ขออนุมัติสมัครอบรม: $course", 0, 200, 'UTF-8');
     $msg     = ApprovalMessage::build($name, $course);
-    $message = $msg['plain'];                                   // ข้อความธรรมดา: เก็บลง Neon และเป็นข้อความสำรอง
-    // ตั้ง CAS_MSG_HTML=1 บน Render เพื่อส่งแบบ HTML (ลบตัวแปร = กลับเป็นข้อความธรรมดา)
-    $sendMsg = (getenv('CAS_MSG_HTML') === '1') ? $msg['html'] : $message;
+    $message = $msg['plain'];   // plain-text: เก็บลง Neon และเป็น fallback ทุก channel
 
     try {
         $cas = CasClient::fromEnv();
-        $r = $cas->sendRequest($ref, 1, $subject, $sendMsg, $me, dkc_app_url() . '/backend/cas_callback.php');
+        $r = $cas->sendRequest(
+            $ref, 1, $subject,
+            $message,                           // MsgForHead  — plain-text fallback
+            $me,
+            dkc_app_url() . '/backend/cas_callback.php',
+            $msg['html'],                       // MsgHTMLForHead — อีเมล (HTML)
+            $msg['flex']                        // MsgFlexForHead — LINE Flex
+        );
     } catch (Throwable $e) {
         error_log('[approval_submit] CAS request failed: ' . $e->getMessage());
         dkc_redirect_thankyou(['ref' => $ref, 'e' => 'upstream']);
