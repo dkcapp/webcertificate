@@ -311,18 +311,26 @@ sequenceDiagram
 
 คุกกี้ `DKCUSER` ตั้ง `HttpOnly`, `SameSite=Lax` (**ต้องเป็น Lax** เพื่อให้คุกกี้ติดมาตอน DKC redirect กลับ), `Secure` เมื่อเป็น HTTPS (ตรวจจาก `X-Forwarded-Proto` ของ Render), strict mode เปิด
 
-### 3.5 แอดมินดูสถานะคำขอ
+### 3.5 แอดมินดูและจัดการคำขออนุมัติ
 
 ```
 แอดมิน เปิดแท็บ "คำขออนุมัติ"
-   └─▶ admin.js → fetchApprovals() (ค้นหาแบบ debounce, แบ่งหน้าละ 20)
-        └─▶ backend/admin_api.php?action=list_approval_requests&page=&status=&q=
+   └─▶ admin.js → loadApprovalsPage() / fetchApprovals()
+        └─▶ backend/admin_api.php?action=list_approval_requests&page=&per_page=&status=&q=&course=&year_be=&date_from=&date_to=
              └─▶ ApprovalRepository::listPage()  ──▶ Neon.approval_requests
-        ◀── { items, total, page, per_page, summary:{total, approved, rejected, pending} }
-   แสดง: วันที่ขอ | ผู้สมัคร | คอร์ส | ประเภท | ผู้ขอ (AD) | หัวหน้ากอง | สถานะ | อัปเดตล่าสุด
+        ◀── { items, total, page, per_page, summary:{total, approved, rejected, pending}, options:{courses, years} }
+   แสดง: ☐ | วันที่ขอ | ผู้สมัคร | คอร์ส | ประเภท | ผู้ขอ (AD) | หัวหน้ากอง | สถานะ | อัปเดตล่าสุด | ดู / ลบ
 ```
-- เวลาเก็บเป็น **UTC** ใน Neon; `listPage()` ส่งออกด้วย `to_char` แล้ว `admin.js (formatThaiDateTime)` แปลงเป็นเวลาไทย
-- กรองสถานะ: ทั้งหมด / รออนุมัติ / อนุมัติแล้ว / ไม่อนุมัติ และค้นหาจากชื่อ/คอร์ส/ผู้ขอ/หัวหน้ากอง
+| ฟีเจอร์ | รายละเอียด |
+|---|---|
+| การ์ดสรุป | ทั้งหมด / รออนุมัติ / อนุมัติแล้ว / ไม่อนุมัติ — **นับตามตัวกรองอื่นที่เลือกอยู่** (ไม่รวมตัวกรองสถานะ) คลิกการ์ดเพื่อกรองสถานะ |
+| ตัวกรอง | ค้นหา (ชื่อ/คอร์ส/ผู้ขอ/หัวหน้ากอง/รหัส, debounce), ช่วงวันที่ขอ (ตั้งแต่–ถึง), ช่วงเวลาด่วน (วันนี้/7 วัน/30 วัน/เดือนนี้), คอร์ส, ปี พ.ศ., จำนวนต่อหน้า 20/50/100 — ตัวกรองที่ใช้อยู่แสดงเป็นแท็ก กดลบทีละอันหรือ "ล้างตัวกรองทั้งหมด" |
+| วันที่/ปี | `created_at` เก็บเป็น UTC แต่ **กรองตามเวลาไทย** (`created_at + 7 ชม.`) ตัวเลือกคอร์ส/ปี ดึงจากคำขอที่มีจริง |
+| ดูรายละเอียด | `get_approval` — ข้อมูลผู้สมัคร, ผู้ขอ, หัวหน้ากอง (อีเมล/ตำแหน่ง/สังกัดจาก `cas_data`), สถานะดิบ, RequestKey, ข้อความที่ส่ง (**ดูอย่างเดียว ไม่มีแก้ไข**) |
+| ลบ | ปุ่มลบรายแถว หรือติ๊ก checkbox หลายแถว (มีเลือกทั้งหน้า) แล้ว "ลบที่เลือก" → modal ยืนยัน → `delete_approvals` (POST, สูงสุด 500/ครั้ง) **ลบเฉพาะใน Neon ไม่ได้ยกเลิกคำขอที่ CAS** ถ้าหัวหน้ากดผลภายหลัง `cas_callback` จะไม่พบแถวและไม่ทำอะไร |
+| ตรวจสถานะจาก CAS | สำหรับกรณี callback ไม่มาถึง: เลือกแถวหรือกดในหน้ารายละเอียด → `refresh_approval_status` (POST, สูงสุด 50/ครั้ง) ถาม `reqstat` แล้วอัปเดต Neon |
+| ส่งออก CSV | `export_approvals` ตามตัวกรองปัจจุบัน (UTF-8 + BOM เปิดด้วย Excel ได้, เวลาไทย, กัน formula injection ด้วยการเติม `'` หน้าค่าที่ขึ้นต้นด้วย `= + - @`) |
+
 - `ApprovalRepository::insert()/updateStatus()` พยายาม **เดาผูก `student_id`** กับผู้เรียนใน Neon ด้วยชื่อ+คอร์ส (best-effort อาจว่างหรือผิดได้ถ้าชื่อซ้ำ)
 
 ### 3.6 แอดมินจัดการข้อมูลและนำเข้าจาก Airtable
@@ -444,7 +452,7 @@ webcertificate/
 | `AirtableClient.php` | ดึง records ทุกหน้าของ Airtable table ที่กำหนด |
 | `CourseRepository.php` | SQL ของ `courses`/`active_courses`: `listWithStudentCount`, `listWithActiveFlag`, `listActiveLongKeys`, `findByShortName`, `findByShortNameOrLongKey`, `add/update/delete`, `activate/deactivate` |
 | `StudentRepository.php` | SQL ของ `students`: `paginate`, `find`, `add/update/delete`, `insertFromWebhook`, `insertFromAirtable`, `listAllWithCourse`, ตัวช่วยกันนำเข้าซ้ำ |
-| `ApprovalRepository.php` | SQL ของ `approval_requests`: `statusKind`, `find`, `insert` (ON CONFLICT DO NOTHING), `updateStatus`, `findStudentId`, `listPage` |
+| `ApprovalRepository.php` | SQL ของ `approval_requests`: `statusKind`, `find`, `insert` (ON CONFLICT DO NOTHING), `updateStatus`, `findStudentId`, `listPage` (ตัวกรองผ่าน `buildWhere`), `filterOptions`, `listAll` (CSV), `deleteMany` |
 | `ApprovalMessage.php` | `ApprovalMessage::build($name,$course)` → `['plain'=>…, 'html'=>…]` |
 | `DkcOAuth.php` | `fromEnv()`, `authorizeUrl($state)`, `exchangeCode($code)`, `fetchUser($token)` (ต้องมี `username`) |
 | `CasClient.php` | `fromEnv()`, `sendRequest(…)`, `fetchStatus($ref)`, `isOk($r)` |
@@ -534,7 +542,11 @@ Index: `requester_ad`, `created_at DESC`, `status`, `student_id`
 | `get_student` / `add_student` / `update_student` / `delete_student` | จัดการผู้เรียน |
 | `airtable_preview` | ดึง Airtable จัดกลุ่มตามคอร์ส เทียบกับ Neon |
 | `airtable_import_course` | สร้างคอร์ส (ถ้าจำเป็น) + นำเข้านักเรียนที่เลือก ใน transaction เดียว |
-| `list_approval_requests` | รายการคำขอ + สรุป (`page`, `per_page`, `status`, `q`) |
+| `list_approval_requests` | รายการคำขอ + สรุป + ตัวเลือกตัวกรอง (`page`, `per_page`, `status`, `q`, `course`, `year_be`, `date_from`, `date_to`) |
+| `get_approval` | รายละเอียดคำขอ 1 รายการ (`ref`) |
+| `delete_approvals` | **POST** ลบคำขอ `refs[]` (1 หรือหลายรายการ) |
+| `refresh_approval_status` | **POST** ถามสถานะจาก CAS (`reqstat`) ของ `refs[]` แล้วอัปเดต Neon |
+| `export_approvals` | ดาวน์โหลด CSV ตามตัวกรองเดียวกับ `list_approval_requests` |
 
 ---
 
@@ -700,7 +712,8 @@ Base `appI37LT5wFrI4ITA` ใช้เป็นระบบเดิมของ�
 | เปลี่ยนข้อความ/สไตล์หน้า Thank you | `thankyou.html` (CSS+JS ในไฟล์เดียว) |
 | เปลี่ยนรูป QR กลุ่มไลน์ | วางไฟล์ `assets/images/line-qr.png` ทับ (ถ้าเปลี่ยนชื่อไฟล์ แก้ `img.src` ใน `thankyou.html`) |
 | เพิ่มข้อมูลของหัวหน้ากองที่หน้า Thank you | `approval_result.php` (อ่านจาก `cas_data`) + `resultView()` ใน `thankyou.html` |
-| เพิ่มคอลัมน์ในแท็บ "คำขออนุมัติ" | `ApprovalRepository::listPage()` + `fetchApprovals()` ใน `assets/js/admin.js` + ส่วนหัวตารางใน `index.html` |
+| เพิ่มคอลัมน์ในแท็บ "คำขออนุมัติ" | `ApprovalRepository::listPage()` + `fetchApprovals()` และหัวตารางใน `loadApprovalsPage()` (`assets/js/admin.js`) |
+| เพิ่มตัวกรองในแท็บ "คำขออนุมัติ" | `ApprovalRepository::buildWhere()` + `approval_filters_from()` ใน `admin_api.php` + `approvalFilters` / ช่องกรองใน `admin.js` |
 | เพิ่มฟิลด์ผู้สมัครที่เก็บใน Neon | `jotform_webhook.php` (mapping), `StudentRepository::insertFromAirtable()`, `database/schema.sql` + `ALTER TABLE` บน Neon |
 | ฟอร์ม JotForm เปลี่ยน field id | `jotform_webhook.php` ตาราง mapping §8.1ข และตัวแปรใน Thank You URL §8.1ค |
 | ย้ายโดเมนเว็บ | `APP_URL`, `OAUTH_REDIRECT_URI` บน Render + แจ้ง IT ลงทะเบียน redirect_uri และ CallbackURL ใหม่ + แก้ลิงก์ Thank You ใน JotForm + Webhook URL |
@@ -783,7 +796,7 @@ Base `appI37LT5wFrI4ITA` ใช้เป็นระบบเดิมของ�
 | ทดสอบประเภท "ผู้นำบุญ…" (ขึ้นแค่ขอบคุณ + QR ไม่มีกล่องขออนุมัติ) | ✅ ผ่าน |
 | หน้า Thank you ใหม่ (ขอบคุณ + QR + ตกลง/ยกเลิก + ข้อมูลหัวหน้ากอง) | ✅ ใช้งานได้ |
 | ข้อความ HTML ถึงหัวหน้ากอง (`CAS_MSG_HTML=1`) | ✅ ใช้งานได้ |
-| แท็บ "คำขออนุมัติ" อ่านจาก Neon | ✅ ใช้งานได้ |
+| แท็บ "คำขออนุมัติ" อ่านจาก Neon + ตัวกรอง (วันที่/คอร์ส/ปี) + ลบหลายรายการ + ดูรายละเอียด + ตรวจสถานะจาก CAS + ส่งออก CSV | ✅ ใช้งานได้ |
 | วางรูป QR กลุ่มไลน์จริง (`assets/images/line-qr.png`) | ⏳ รอรูปจริง (ตอนนี้เป็นกรอบสีเทา) |
 | ตั้ง Thank You Page ของ **ฟอร์มบริษัท `231301336713444`** (ตรวจ Unique Name, ลิงก์ §8.1ค, ลบ Conditions, ปิด Send Post Data) และทดสอบ | ⏳ ยังไม่ได้ทำ |
 | ตั้งฟอร์มทดลอง `261701468554460` กลับเป็นลิงก์ Thank You เดิม (หลังทดสอบ POST/PDF) และลบไฟล์ทดสอบชั่วคราวออกจากโปรเจกต์ | ⏳ ตรวจให้แน่ใจ |

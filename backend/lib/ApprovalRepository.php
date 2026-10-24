@@ -114,17 +114,20 @@ class ApprovalRepository
         return $id === false ? null : (int) $id;
     }
 
-    /**
-     * รายการ + สรุปสำหรับแท็บแอดมิน (รูปแบบเดียวกับที่ Portal เคยตอบ)
-     * $status: approved|rejected|pending|'' ; $q ค้นหาในรหัส/ผู้ขอ/ผู้สมัคร/คอร์ส/หัวข้อ/หัวหน้ากอง
-     */
-    public function listPage(int $page, int $perPage, string $status, string $q): array
-    {
-        $page    = max(1, $page);
-        $perPage = min(100, max(1, $perPage));
+    // created_at เก็บเป็น UTC → แปลงเป็นเวลาไทยก่อนกรองวันที่/ปี
+    private const LOCAL_TS = "(created_at + INTERVAL '7 hours')";
 
+    /**
+     * สร้าง WHERE จากตัวกรองของแท็บแอดมิน
+     * $f keys: status (approved|rejected|pending|''), q, course, year_be (พ.ศ.), date_from, date_to (YYYY-MM-DD เวลาไทย)
+     * $withStatus = false ใช้ตอนนับสรุป (การ์ดสถานะต้องนับตามตัวกรองอื่น แต่ไม่ถูกกรองด้วยสถานะเอง)
+     */
+    private function buildWhere(array $f, bool $withStatus = true): array
+    {
         $where  = [];
         $params = [];
+
+        $status = $withStatus ? (string) ($f['status'] ?? '') : '';
         if ($status === 'approved') {
             $where[] = "UPPER(status) LIKE 'APPROVE%'";
         } elseif ($status === 'rejected') {
@@ -132,14 +135,48 @@ class ApprovalRepository
         } elseif ($status === 'pending') {
             $where[] = "UPPER(status) NOT LIKE 'APPROVE%' AND UPPER(status) NOT LIKE 'REJECT%'";
         }
-        $q = trim($q);
+
+        $q = trim((string) ($f['q'] ?? ''));
         if ($q !== '') {
             $where[] = "(external_ref_id ILIKE :q OR requester_ad ILIKE :q OR requester_name ILIKE :q
                          OR applicant_name ILIKE :q OR course ILIKE :q OR subject ILIKE :q
                          OR approver_name ILIKE :q OR approver_ad ILIKE :q)";
             $params[':q'] = '%' . addcslashes($q, '%_\\') . '%';
         }
-        $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $course = trim((string) ($f['course'] ?? ''));
+        if ($course !== '') {
+            $where[] = 'course = :course';
+            $params[':course'] = $course;
+        }
+
+        $year = (string) ($f['year_be'] ?? '');
+        if (preg_match('/^\d{4}$/', $year)) {
+            $where[] = 'EXTRACT(YEAR FROM ' . self::LOCAL_TS . ') = :year_ce';
+            $params[':year_ce'] = (int) $year - 543;
+        }
+
+        foreach (['date_from' => '>=', 'date_to' => '<='] as $key => $op) {
+            $d = (string) ($f[$key] ?? '');
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $d) && checkdate((int) substr($d, 5, 2), (int) substr($d, 8, 2), (int) substr($d, 0, 4))) {
+                $where[] = 'CAST(' . self::LOCAL_TS . " AS DATE) $op CAST(:$key AS DATE)";
+                $params[":$key"] = $d;
+            }
+        }
+
+        return [$where ? 'WHERE ' . implode(' AND ', $where) : '', $params];
+    }
+
+    /**
+     * รายการ + สรุปสำหรับแท็บแอดมิน
+     * summary นับตามตัวกรองปัจจุบัน (ยกเว้นสถานะ) และ options คือค่าที่มีให้เลือกในตัวกรองคอร์ส/ปี
+     */
+    public function listPage(int $page, int $perPage, array $filters): array
+    {
+        $page    = max(1, $page);
+        $perPage = min(100, max(1, $perPage));
+
+        [$whereSql, $params] = $this->buildWhere($filters);
 
         $cnt = $this->pdo->prepare("SELECT COUNT(*) FROM approval_requests $whereSql");
         $cnt->execute($params);
@@ -152,7 +189,7 @@ class ApprovalRepository
                     to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
                     to_char(updated_at, 'YYYY-MM-DD HH24:MI:SS') AS updated_at
                FROM approval_requests $whereSql
-              ORDER BY created_at DESC
+              ORDER BY approval_requests.created_at DESC
               LIMIT :lim OFFSET :off"
         );
         foreach ($params as $k => $v) $st->bindValue($k, $v);
@@ -161,12 +198,15 @@ class ApprovalRepository
         $st->execute();
         $items = $st->fetchAll();
 
-        $sum = $this->pdo->query(
+        [$sumWhere, $sumParams] = $this->buildWhere($filters, false);
+        $sum = $this->pdo->prepare(
             "SELECT COUNT(*) AS total,
                     COALESCE(SUM(CASE WHEN UPPER(status) LIKE 'APPROVE%' THEN 1 ELSE 0 END), 0) AS approved,
                     COALESCE(SUM(CASE WHEN UPPER(status) LIKE 'REJECT%'  THEN 1 ELSE 0 END), 0) AS rejected
-               FROM approval_requests"
-        )->fetch();
+               FROM approval_requests $sumWhere"
+        );
+        $sum->execute($sumParams);
+        $sum = $sum->fetch();
         $t = (int) $sum['total'];
         $a = (int) $sum['approved'];
         $r = (int) $sum['rejected'];
@@ -177,6 +217,53 @@ class ApprovalRepository
             'page'     => $page,
             'per_page' => $perPage,
             'summary'  => ['total' => $t, 'approved' => $a, 'rejected' => $r, 'pending' => $t - $a - $r],
+            'options'  => $this->filterOptions(),
         ];
+    }
+
+    /** ตัวเลือกของ dropdown: คอร์สที่มีคำขอ และปี พ.ศ. ที่มีคำขอ (ใหม่ → เก่า) */
+    public function filterOptions(): array
+    {
+        $courses = $this->pdo->query(
+            "SELECT DISTINCT course FROM approval_requests WHERE course IS NOT NULL AND course <> '' ORDER BY course"
+        )->fetchAll(PDO::FETCH_COLUMN);
+        $years = $this->pdo->query(
+            'SELECT DISTINCT CAST(EXTRACT(YEAR FROM ' . self::LOCAL_TS . ') AS INT) + 543 AS y
+               FROM approval_requests ORDER BY y DESC'
+        )->fetchAll(PDO::FETCH_COLUMN);
+        return ['courses' => $courses, 'years' => array_map('intval', $years)];
+    }
+
+    /** ทุกแถวตามตัวกรอง (ไม่แบ่งหน้า) สำหรับส่งออก CSV */
+    public function listAll(array $filters, int $max = 10000): array
+    {
+        [$whereSql, $params] = $this->buildWhere($filters);
+        $st = $this->pdo->prepare(
+            "SELECT external_ref_id, applicant_name, course, member_type, requester_ad, requester_name,
+                    approver_ad, approver_name, status, approve_step, request_key,
+                    to_char(created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
+                    to_char(updated_at, 'YYYY-MM-DD HH24:MI:SS') AS updated_at
+               FROM approval_requests $whereSql
+              ORDER BY approval_requests.created_at DESC
+              LIMIT :lim"
+        );
+        foreach ($params as $k => $v) $st->bindValue($k, $v);
+        $st->bindValue(':lim', $max, PDO::PARAM_INT);
+        $st->execute();
+        return $st->fetchAll();
+    }
+
+    /**
+     * ลบคำขอตามรายการรหัส คืนจำนวนที่ลบจริง
+     * (ลบเฉพาะใน Neon — ไม่ได้ยกเลิกคำขอที่ CAS ถ้าหัวหน้ากองกดผลภายหลัง cas_callback จะไม่พบแถวและไม่ทำอะไร)
+     */
+    public function deleteMany(array $refs): int
+    {
+        $refs = array_values(array_unique(array_filter(array_map('strval', $refs), fn($r) => $r !== '')));
+        if (!$refs) return 0;
+        $ph = implode(',', array_fill(0, count($refs), '?'));
+        $st = $this->pdo->prepare("DELETE FROM approval_requests WHERE external_ref_id IN ($ph)");
+        $st->execute($refs);
+        return $st->rowCount();
     }
 }

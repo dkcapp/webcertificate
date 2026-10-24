@@ -22,6 +22,7 @@ require_once __DIR__ . '/lib/CourseRepository.php';
 require_once __DIR__ . '/lib/StudentRepository.php';
 require_once __DIR__ . '/lib/AirtableClient.php';
 require_once __DIR__ . '/lib/ApprovalRepository.php';
+require_once __DIR__ . '/lib/CasClient.php';
 
 $pdo         = getDB();
 $courseRepo  = new CourseRepository($pdo);
@@ -60,6 +61,32 @@ const AIRTABLE_FIELD_MAP = [
     'Last modified time'   => 'last_modified_time',
 ];
 const AIRTABLE_COURSE_FIELD = 'โปรแกรมที่สมัคร'; // field ที่ใช้จับคู่กับ courses.long_key
+
+/** ตัวกรองของแท็บคำขออนุมัติจาก query string (ใช้ร่วมกันระหว่างรายการและส่งออก CSV) */
+function approval_filters_from(array $src): array
+{
+    $f = [];
+    foreach (['status', 'q', 'course', 'year_be', 'date_from', 'date_to'] as $k) {
+        $f[$k] = trim((string) ($src[$k] ?? ''));
+    }
+    return $f;
+}
+
+/** รายการรหัสอ้างอิงจาก POST refs[] (หรือ JSON string) กรองเฉพาะรูปแบบที่ถูกต้อง */
+function approval_refs_from_post(int $max): array
+{
+    $refs = $_POST['refs'] ?? [];
+    if (!is_array($refs)) $refs = json_decode((string) $refs, true) ?: [];
+    $refs = array_filter(array_map('strval', $refs), fn($r) => preg_match('/^[A-Za-z0-9_-]{1,100}$/', $r));
+    return array_slice(array_values(array_unique($refs)), 0, $max);
+}
+
+/** กัน CSV/Formula injection เมื่อเปิดใน Excel (ค่าที่ขึ้นต้นด้วย = + - @) */
+function csv_safe($v): string
+{
+    $v = (string) ($v ?? '');
+    return ($v !== '' && strpbrk($v[0], "=+-@\t\r") !== false) ? "'" . $v : $v;
+}
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
@@ -459,10 +486,112 @@ try {
         $data = (new ApprovalRepository($pdo))->listPage(
             (int) ($_GET['page'] ?? 1),
             (int) ($_GET['per_page'] ?? 20),
-            (string) ($_GET['status'] ?? ''),
-            (string) ($_GET['q'] ?? '')
+            approval_filters_from($_GET)
         );
         echo json_encode(['ok' => true, 'data' => $data], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    // ===== รายละเอียดคำขอ 1 รายการ (ดูอย่างเดียว ไม่มีแก้ไข) =====
+    if ($action === 'get_approval') {
+        $row = (new ApprovalRepository($pdo))->find((string) ($_GET['ref'] ?? ''));
+        if (!$row) {
+            echo json_encode(['ok' => false, 'error' => 'ไม่พบคำขอนี้'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $cas = json_decode((string) ($row['cas_data'] ?? ''), true) ?: [];
+        unset($row['cas_data']);
+        $row['approver_email']    = $cas['HeadShowEmail'] ?? null;
+        $row['approver_position'] = $cas['Position'] ?? null;
+        $row['approver_org']      = $cas['Organization'] ?? null;
+        $row['status_kind']       = ApprovalRepository::statusKind($row['status']);
+        echo json_encode(['ok' => true, 'data' => $row], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    // ===== ลบคำขอ (1 รายการหรือหลายรายการ) =====
+    if ($action === 'delete_approvals') {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['ok' => false, 'error' => 'ต้องใช้ POST']);
+            exit;
+        }
+        $refs = approval_refs_from_post(500);
+        if (!$refs) {
+            echo json_encode(['ok' => false, 'error' => 'ยังไม่ได้เลือกรายการที่จะลบ'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $deleted = (new ApprovalRepository($pdo))->deleteMany($refs);
+        error_log('[admin_api] delete_approvals: ' . $deleted . ' row(s): ' . implode(',', $refs));
+        echo json_encode(['ok' => true, 'deleted' => $deleted]);
+        exit;
+    }
+
+    // ===== ถามสถานะล่าสุดจาก CAS (กรณี callback ไม่มาถึง) แล้วอัปเดต Neon =====
+    if ($action === 'refresh_approval_status') {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['ok' => false, 'error' => 'ต้องใช้ POST']);
+            exit;
+        }
+        $refs = approval_refs_from_post(50);
+        if (!$refs) {
+            echo json_encode(['ok' => false, 'error' => 'ยังไม่ได้เลือกรายการ'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $repo    = new ApprovalRepository($pdo);
+        $cas     = CasClient::fromEnv();
+        $updated = 0;
+        $failed  = 0;
+        foreach ($refs as $ref) {
+            if (!$repo->find($ref)) continue;
+            $d = $cas->fetchStatus($ref);
+            if (!$d) { $failed++; continue; }
+            $repo->updateStatus(
+                $ref,
+                (string) $d['Status'],
+                isset($d['ApproveStep']) ? (string) $d['ApproveStep'] : null,
+                !empty($d['Approver_ADUser']) ? (string) $d['Approver_ADUser'] : null
+            );
+            $updated++;
+        }
+        echo json_encode(['ok' => true, 'updated' => $updated, 'failed' => $failed]);
+        exit;
+    }
+
+    // ===== ส่งออก CSV ตามตัวกรองปัจจุบัน (เปิดด้วย Excel ได้ ภาษาไทยไม่เพี้ยน) =====
+    if ($action === 'export_approvals') {
+        $rows = (new ApprovalRepository($pdo))->listAll(approval_filters_from($_GET));
+        $toThai = function (?string $utc): string {
+            if (!$utc) return '';
+            $dt = new DateTime($utc, new DateTimeZone('UTC'));
+            $dt->setTimezone(new DateTimeZone('Asia/Bangkok'));
+            return $dt->format('Y-m-d H:i');
+        };
+        $label = ['approved' => 'อนุมัติแล้ว', 'rejected' => 'ไม่อนุมัติ', 'pending' => 'รออนุมัติ'];
+
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="approval_requests_' . date('Ymd_His') . '.csv"');
+        $out = fopen('php://output', 'w');
+        fwrite($out, "\xEF\xBB\xBF"); // BOM ให้ Excel อ่าน UTF-8
+        fputcsv($out, ['วันที่ขอ', 'ผู้สมัคร', 'คอร์ส', 'ประเภท', 'ผู้ขอ (AD)', 'ชื่อผู้ขอ', 'หัวหน้ากอง (AD)', 'ชื่อหัวหน้ากอง', 'สถานะ', 'สถานะดิบ (CAS)', 'อัปเดตล่าสุด', 'รหัสอ้างอิง']);
+        foreach ($rows as $r) {
+            fputcsv($out, array_map('csv_safe', [
+                $toThai($r['created_at']),
+                $r['applicant_name'],
+                $r['course'],
+                $r['member_type'],
+                $r['requester_ad'],
+                $r['requester_name'],
+                $r['approver_ad'],
+                $r['approver_name'],
+                $label[ApprovalRepository::statusKind($r['status'])],
+                $r['status'],
+                $toThai($r['updated_at']),
+                $r['external_ref_id'],
+            ]));
+        }
+        fclose($out);
         exit;
     }
 

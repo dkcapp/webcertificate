@@ -1,5 +1,5 @@
 // assets/js/admin.js
-// ตรรกะหน้า Admin Panel ทั้งหมด: จัดการคอร์ส, จัดการรายชื่อผู้เรียน, เปิดรับสมัคร + sync JotForm
+// ตรรกะหน้า Admin Panel ทั้งหมด: จัดการคอร์ส, จัดการรายชื่อผู้เรียน, เปิดรับสมัคร + sync JotForm, คำขออนุมัติ
 
 // ===== Toast Notification (แทนที่ alert() แบบเดิม) =====
 const TOAST_ICONS = {
@@ -84,10 +84,26 @@ function switchTab(tab) {
   }
 }
 
-// ===== แท็บคำขออนุมัติ (ดึงจาก Portal ผ่าน backend) =====
-let approvalFilters = { q: "", status: "" };
+// ===== แท็บคำขออนุมัติ (อ่านจาก Neon: approval_requests) =====
+// ตัวกรอง: สถานะ / ค้นหา / ช่วงวันที่ / คอร์ส / ปี พ.ศ. — ดูรายละเอียด, ลบทีละรายการหรือหลายรายการ,
+// ตรวจสถานะล่าสุดจาก CAS และส่งออก CSV (ไม่มีการแก้ไขข้อมูลคำขอ)
+const AP_EMPTY_FILTERS = { q: "", status: "", course: "", year_be: "", date_from: "", date_to: "" };
+let approvalFilters = { ...AP_EMPTY_FILTERS };
 let approvalSearchTimer = null;
+let apPerPage = 20;
+let apPage = 1;
+let apItems = [];
+let apSelected = new Set();
 const AP_STATUS_LABEL = { approved: "อนุมัติแล้ว", rejected: "ไม่อนุมัติ", pending: "รออนุมัติ" };
+const AP_ICON = {
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  refresh: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  search: '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+};
+const apSvg = (name) => `<svg viewBox="0 0 24 24">${AP_ICON[name]}</svg>`;
 
 function formatThaiDateTime(utcStr) {
   if (!utcStr) return "—";
@@ -103,31 +119,86 @@ function formatThaiDateTime(utcStr) {
   });
 }
 
+function apStatusKind(status) {
+  const st = String(status || "").toUpperCase();
+  return st.startsWith("APPROVE") ? "approved" : st.startsWith("REJECT") ? "rejected" : "pending";
+}
+
 function loadApprovalsPage() {
+  const f = approvalFilters;
   const area = document.getElementById("approvals-content-area");
   area.innerHTML = `
 <div class="admin-page-title">
   <h2>คำขออนุมัติ</h2>
   <span class="badge-count" id="ap-count-badge">0 รายการ</span>
-</div>
-<div class="ap-summary" id="ap-summary"></div>
-<div class="admin-toolbar">
-  <div class="admin-search">
-    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    <input type="text" id="ap-search" placeholder="ค้นหาชื่อ / คอร์ส / ผู้ขอ / หัวหน้ากอง..." oninput="onApprovalSearchInput()" autocomplete="off" value="${escHtml(approvalFilters.q)}">
+  <div class="ap-title-actions">
+    <button class="btn-sm btn-edit" onclick="fetchApprovals(apPage)" title="โหลดข้อมูลใหม่">${apSvg("refresh")} รีเฟรช</button>
+    <button class="btn-sm btn-primary" onclick="exportApprovals()" title="ส่งออกตามตัวกรองปัจจุบัน">${apSvg("download")} ส่งออก CSV</button>
   </div>
-  <button class="btn-sm" onclick="fetchApprovals(1)">รีเฟรช</button>
 </div>
+
+<div class="ap-stat-grid" id="ap-stats">
+  ${["", "pending", "approved", "rejected"].map((k) => `
+  <button type="button" class="ap-stat ${k || "all"}" data-status="${k}" onclick="setApprovalStatus('${k}')">
+    <span class="ap-stat-label">${k ? AP_STATUS_LABEL[k] : "ทั้งหมด"}</span>
+    <span class="ap-stat-num" id="ap-stat-${k || "all"}">—</span>
+    <span class="ap-stat-bar"><span id="ap-bar-${k || "all"}"></span></span>
+  </button>`).join("")}
+</div>
+
+<div class="ap-filter-panel">
+  <div class="admin-search ap-search">
+    ${apSvg("search")}
+    <input type="text" id="ap-search" placeholder="ค้นหาชื่อผู้สมัคร / ผู้ขอ / หัวหน้ากอง / รหัสอ้างอิง..." oninput="onApprovalSearchInput()" autocomplete="off" value="${escHtml(f.q)}">
+  </div>
+  <div class="ap-filter-fields">
+    <label class="ap-field"><span>ตั้งแต่วันที่</span>
+      <input type="date" id="ap-date-from" class="ap-date" value="${escHtml(f.date_from)}" onchange="onApprovalFilterChange()"></label>
+    <label class="ap-field"><span>ถึงวันที่</span>
+      <input type="date" id="ap-date-to" class="ap-date" value="${escHtml(f.date_to)}" onchange="onApprovalFilterChange()"></label>
+    <label class="ap-field"><span>ช่วงเวลาด่วน</span>
+      <select id="ap-quick-range" class="year-filter-select" onchange="applyApprovalQuickRange(this.value)">
+        <option value="">— เลือก —</option>
+        <option value="today">วันนี้</option>
+        <option value="7">7 วันล่าสุด</option>
+        <option value="30">30 วันล่าสุด</option>
+        <option value="month">เดือนนี้</option>
+      </select></label>
+    <label class="ap-field ap-field-wide"><span>คอร์ส</span>
+      <select id="ap-course" class="year-filter-select" onchange="onApprovalFilterChange()"><option value="">ทุกคอร์ส</option></select></label>
+    <label class="ap-field"><span>ปี (พ.ศ.)</span>
+      <select id="ap-year" class="year-filter-select" onchange="onApprovalFilterChange()"><option value="">ทุกปี</option></select></label>
+    <label class="ap-field"><span>แสดงต่อหน้า</span>
+      <select id="ap-per-page" class="year-filter-select" onchange="apPerPage = +this.value; fetchApprovals(1)">
+        ${[20, 50, 100].map((n) => `<option value="${n}" ${apPerPage === n ? "selected" : ""}>${n}</option>`).join("")}
+      </select></label>
+  </div>
+  <div class="ap-active-filters" id="ap-active-filters"></div>
+</div>
+
+<div class="ap-bulk-bar" id="ap-bulk-bar" hidden>
+  <span id="ap-bulk-count">เลือก 0 รายการ</span>
+  <div class="ap-bulk-actions">
+    <button class="btn-sm btn-edit" onclick="refreshApprovalStatus([...apSelected])" title="ถามสถานะล่าสุดจาก CAS">${apSvg("refresh")} ตรวจสถานะจาก CAS</button>
+    <button class="btn-sm btn-danger" onclick="confirmDeleteApprovals([...apSelected])">${apSvg("trash")} ลบที่เลือก</button>
+    <button class="btn-sm ap-btn-ghost" onclick="clearApprovalSelection()">ยกเลิกการเลือก</button>
+  </div>
+</div>
+
 <div class="table-card"><div style="overflow-x:auto">
-<table class="data-table">
+<table class="data-table ap-table">
   <thead><tr>
+    <th class="ap-col-check"><input type="checkbox" id="ap-check-all" onchange="toggleApprovalSelectAll(this.checked)" title="เลือกทั้งหมดในหน้านี้"></th>
     <th>วันที่ขอ</th><th>ผู้สมัคร</th><th>คอร์ส</th><th>ประเภท</th>
-    <th>ผู้ขอ (AD)</th><th>หัวหน้ากอง</th><th>สถานะ</th><th>อัปเดตล่าสุด</th>
+    <th>ผู้ขอ (AD)</th><th>หัวหน้ากอง</th><th>สถานะ</th><th>อัปเดตล่าสุด</th><th></th>
   </tr></thead>
   <tbody id="ap-tbody"></tbody>
 </table></div></div>
 <div class="pagination" id="ap-pagination"></div>`;
-  fetchApprovals(1);
+
+  document.getElementById("ap-tbody").addEventListener("click", onApprovalRowClick);
+  document.getElementById("ap-tbody").addEventListener("change", onApprovalRowCheck);
+  fetchApprovals(apPage);
 }
 
 function onApprovalSearchInput() {
@@ -138,19 +209,96 @@ function onApprovalSearchInput() {
   }, 350);
 }
 
+function onApprovalFilterChange() {
+  const val = (id) => (document.getElementById(id)?.value || "").trim();
+  approvalFilters.date_from = val("ap-date-from");
+  approvalFilters.date_to = val("ap-date-to");
+  approvalFilters.course = val("ap-course");
+  approvalFilters.year_be = val("ap-year");
+  // วันที่เริ่มต้องไม่เกินวันที่สิ้นสุด — ถ้ากรอกกลับด้านให้สลับให้
+  if (approvalFilters.date_from && approvalFilters.date_to && approvalFilters.date_from > approvalFilters.date_to) {
+    [approvalFilters.date_from, approvalFilters.date_to] = [approvalFilters.date_to, approvalFilters.date_from];
+    document.getElementById("ap-date-from").value = approvalFilters.date_from;
+    document.getElementById("ap-date-to").value = approvalFilters.date_to;
+  }
+  const quick = document.getElementById("ap-quick-range");
+  if (quick) quick.value = "";
+  fetchApprovals(1);
+}
+
+// วันที่ตามเวลาไทย รูปแบบ YYYY-MM-DD (ตรงกับค่า input type=date)
+function apThaiDate(d) {
+  return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" });
+}
+
+function applyApprovalQuickRange(kind) {
+  if (!kind) return;
+  const now = new Date();
+  let from = new Date(now);
+  if (kind === "7") from.setDate(now.getDate() - 6);
+  else if (kind === "30") from.setDate(now.getDate() - 29);
+  else if (kind === "month") from = new Date(apThaiDate(now).slice(0, 8) + "01T00:00:00+07:00");
+  approvalFilters.date_from = apThaiDate(from);
+  approvalFilters.date_to = apThaiDate(now);
+  document.getElementById("ap-date-from").value = approvalFilters.date_from;
+  document.getElementById("ap-date-to").value = approvalFilters.date_to;
+  fetchApprovals(1);
+}
+
 function setApprovalStatus(status) {
   approvalFilters.status = status;
   fetchApprovals(1);
+}
+
+function clearApprovalFilter(key) {
+  if (key === "all") approvalFilters = { ...AP_EMPTY_FILTERS };
+  else approvalFilters[key] = "";
+  loadApprovalsPage(); // วาดใหม่ให้ช่องกรอกตรงกับค่าในตัวกรอง
+}
+
+function renderApprovalFilterTags() {
+  const f = approvalFilters;
+  const fmtDate = (s) => new Date(s + "T00:00:00").toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" });
+  const tags = [];
+  if (f.status) tags.push(["status", "สถานะ: " + AP_STATUS_LABEL[f.status]]);
+  if (f.q) tags.push(["q", "ค้นหา: " + f.q]);
+  if (f.date_from) tags.push(["date_from", "ตั้งแต่ " + fmtDate(f.date_from)]);
+  if (f.date_to) tags.push(["date_to", "ถึง " + fmtDate(f.date_to)]);
+  if (f.course) tags.push(["course", "คอร์ส: " + f.course]);
+  if (f.year_be) tags.push(["year_be", "ปี " + f.year_be]);
+  const box = document.getElementById("ap-active-filters");
+  if (!box) return;
+  box.innerHTML = tags.length
+    ? tags.map(([k, label]) => `<span class="ap-tag">${escHtml(label)}<button type="button" onclick="clearApprovalFilter('${k}')" title="ล้างตัวกรองนี้">${apSvg("x")}</button></span>`).join("") +
+      `<button type="button" class="ap-tag-clear" onclick="clearApprovalFilter('all')">ล้างตัวกรองทั้งหมด</button>`
+    : "";
+}
+
+function apFilterParams() {
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(approvalFilters)) if (v) params.set(k, v);
+  return params;
+}
+
+function fillApprovalSelect(id, values, current, allLabel) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const list = values.map(String);
+  // ค่าที่เลือกไว้แต่ไม่มีในรายการแล้ว (เช่น ลบคำขอสุดท้ายของคอร์สนั้น) ยังคงแสดงไว้
+  if (current && !list.includes(current)) list.unshift(current);
+  sel.innerHTML = `<option value="">${allLabel}</option>` +
+    list.map((v) => `<option value="${escHtml(v)}" ${v === current ? "selected" : ""}>${escHtml(v)}</option>`).join("");
 }
 
 async function fetchApprovals(page = 1) {
   const tbody = document.getElementById("ap-tbody");
   if (!tbody) return;
   tbody.innerHTML =
-    '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:1.5rem">กำลังโหลด...</td></tr>';
-  const params = new URLSearchParams({ action: "list_approval_requests", page, per_page: 20 });
-  if (approvalFilters.q) params.set("q", approvalFilters.q);
-  if (approvalFilters.status) params.set("status", approvalFilters.status);
+    '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:1.5rem">กำลังโหลด...</td></tr>';
+  const params = apFilterParams();
+  params.set("action", "list_approval_requests");
+  params.set("page", page);
+  params.set("per_page", apPerPage);
   let result;
   try {
     const res = await fetch("backend/admin_api.php?" + params.toString());
@@ -158,45 +306,270 @@ async function fetchApprovals(page = 1) {
   } catch (e) {
     result = { ok: false, error: "โหลดข้อมูลไม่สำเร็จ" };
   }
+  renderApprovalFilterTags();
   if (!result.ok) {
-    tbody.innerHTML = `<tr><td colspan="8" style="color:var(--red);padding:1.5rem;text-align:center">❌ ${escHtml(result.error || "เกิดข้อผิดพลาด")}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" style="color:var(--red);padding:1.5rem;text-align:center">❌ ${escHtml(result.error || "เกิดข้อผิดพลาด")}</td></tr>`;
     return;
   }
   const d = result.data;
-  const s = d.summary || {};
-  const chip = (key, label, n) =>
-    `<button class="ap-chip ${approvalFilters.status === key ? "active" : ""}" onclick="setApprovalStatus('${key}')">${label} ${n ?? 0}</button>`;
-  document.getElementById("ap-summary").innerHTML =
-    chip("", "ทั้งหมด", s.total) + chip("pending", "รออนุมัติ", s.pending) +
-    chip("approved", "อนุมัติแล้ว", s.approved) + chip("rejected", "ไม่อนุมัติ", s.rejected);
-  document.getElementById("ap-count-badge").textContent = `${d.total} รายการ`;
+  const totalPages = Math.max(1, Math.ceil((d.total || 0) / (d.per_page || apPerPage)));
+  if (page > totalPages && d.total > 0) return fetchApprovals(totalPages); // หน้าเกินหลังลบ → ไปหน้าสุดท้าย
 
+  apPage = d.page || page;
+  apItems = d.items || [];
+  apSelected.clear();
+  updateApprovalBulkBar();
+
+  // การ์ดสรุป (นับตามตัวกรองอื่น ไม่รวมสถานะ)
+  const s = d.summary || {};
+  const total = s.total || 0;
+  for (const k of ["all", "pending", "approved", "rejected"]) {
+    const n = k === "all" ? total : s[k] || 0;
+    document.getElementById("ap-stat-" + k).textContent = n.toLocaleString("th-TH");
+    document.getElementById("ap-bar-" + k).style.width = (total ? (n / total) * 100 : 0) + "%";
+  }
+  document.querySelectorAll("#ap-stats .ap-stat").forEach((el) =>
+    el.classList.toggle("active", el.dataset.status === approvalFilters.status));
+  document.getElementById("ap-count-badge").textContent = `${(d.total || 0).toLocaleString("th-TH")} รายการ`;
+
+  const opt = d.options || {};
+  fillApprovalSelect("ap-course", opt.courses || [], approvalFilters.course, "ทุกคอร์ส");
+  fillApprovalSelect("ap-year", opt.years || [], approvalFilters.year_be, "ทุกปี");
+
+  const hasFilter = Object.values(approvalFilters).some(Boolean);
   tbody.innerHTML =
-    (d.items || [])
+    apItems
       .map((r) => {
-        const st = String(r.status || "").toUpperCase();
-        const kind = st.startsWith("APPROVE") ? "approved" : st.startsWith("REJECT") ? "rejected" : "pending";
-        const label = AP_STATUS_LABEL[kind] || escHtml(r.status || "—");
-        return `<tr>
-    <td>${formatThaiDateTime(r.created_at)}</td>
-    <td>${escHtml(r.applicant_name || "—")}</td>
-    <td>${escHtml(r.course || "—")}</td>
+        const kind = apStatusKind(r.status);
+        const ref = escHtml(r.external_ref_id);
+        return `<tr data-ref="${ref}">
+    <td class="ap-col-check"><input type="checkbox" class="ap-row-check" value="${ref}"></td>
+    <td style="white-space:nowrap">${formatThaiDateTime(r.created_at)}</td>
+    <td><div class="ap-name">${escHtml(r.applicant_name || "—")}</div><div class="cell-id">${ref}</div></td>
+    <td class="ap-course-cell">${escHtml(r.course || "—")}</td>
     <td class="cell-muted">${escHtml(r.member_type || "—")}</td>
     <td>${escHtml(r.requester_name || r.requester_ad || "—")}<div class="cell-muted" style="font-size:11px">${escHtml(r.requester_ad || "")}</div></td>
     <td>${escHtml(r.approver_name || r.approver_ad || "—")}<div class="cell-muted" style="font-size:11px">${escHtml(r.approver_ad || "")}</div></td>
-    <td><span class="ap-status ${escHtml(kind)}">${label}</span></td>
-    <td>${formatThaiDateTime(r.updated_at)}</td>
+    <td><span class="ap-status ${kind}">${AP_STATUS_LABEL[kind]}</span></td>
+    <td style="white-space:nowrap">${formatThaiDateTime(r.updated_at)}</td>
+    <td><div class="actions">
+      <button class="btn-sm btn-edit" data-act="view" title="ดูรายละเอียด">${apSvg("eye")}</button>
+      <button class="btn-sm btn-danger" data-act="delete" title="ลบ">${apSvg("trash")}</button>
+    </div></td>
   </tr>`;
       })
       .join("") ||
-    '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:1.5rem">ไม่พบข้อมูล</td></tr>';
+    `<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:1.5rem">${hasFilter ? "ไม่พบคำขอที่ตรงกับตัวกรอง" : "ยังไม่มีคำขออนุมัติ"}</td></tr>`;
 
-  const totalPages = Math.max(1, Math.ceil((d.total || 0) / (d.per_page || 20)));
-  const cur = d.page || page;
+  const from = d.total ? (apPage - 1) * d.per_page + 1 : 0;
+  const to = Math.min(d.total, apPage * d.per_page);
   document.getElementById("ap-pagination").innerHTML = `
-  <button class="page-btn" onclick="fetchApprovals(${cur - 1})" ${cur <= 1 ? "disabled" : ""}><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-  <span class="page-info">หน้า ${cur} / ${totalPages}</span>
-  <button class="page-btn" onclick="fetchApprovals(${cur + 1})" ${cur >= totalPages ? "disabled" : ""}><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>`;
+  <button class="page-btn" onclick="fetchApprovals(${apPage - 1})" ${apPage <= 1 ? "disabled" : ""}><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+  <span class="page-info">หน้า ${apPage} / ${totalPages} · แสดง ${from}–${to} จาก ${d.total}</span>
+  <button class="page-btn" onclick="fetchApprovals(${apPage + 1})" ${apPage >= totalPages ? "disabled" : ""}><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>`;
+}
+
+function onApprovalRowClick(e) {
+  const btn = e.target.closest("button[data-act]");
+  if (!btn) return;
+  const ref = btn.closest("tr").dataset.ref;
+  if (btn.dataset.act === "view") openApprovalDetail(ref);
+  else if (btn.dataset.act === "delete") confirmDeleteApprovals([ref]);
+}
+
+function onApprovalRowCheck(e) {
+  if (!e.target.classList.contains("ap-row-check")) return;
+  if (e.target.checked) apSelected.add(e.target.value);
+  else apSelected.delete(e.target.value);
+  updateApprovalBulkBar();
+}
+
+function toggleApprovalSelectAll(checked) {
+  document.querySelectorAll("#ap-tbody .ap-row-check").forEach((cb) => {
+    cb.checked = checked;
+    if (checked) apSelected.add(cb.value);
+    else apSelected.delete(cb.value);
+  });
+  updateApprovalBulkBar();
+}
+
+function clearApprovalSelection() {
+  toggleApprovalSelectAll(false);
+}
+
+function updateApprovalBulkBar() {
+  const n = apSelected.size;
+  const bar = document.getElementById("ap-bulk-bar");
+  if (bar) bar.hidden = n === 0;
+  const cnt = document.getElementById("ap-bulk-count");
+  if (cnt) cnt.textContent = `เลือก ${n} รายการ`;
+  document.querySelectorAll("#ap-tbody tr[data-ref]").forEach((tr) =>
+    tr.classList.toggle("ap-selected", apSelected.has(tr.dataset.ref)));
+  const all = document.getElementById("ap-check-all");
+  const boxes = document.querySelectorAll("#ap-tbody .ap-row-check").length;
+  if (all) {
+    all.checked = boxes > 0 && n === boxes;
+    all.indeterminate = n > 0 && n < boxes;
+  }
+}
+
+// ===== Modal ของแท็บคำขออนุมัติ (สร้างครั้งละ 1 อัน ปิดด้วย Esc / คลิกพื้นหลัง) =====
+function openApprovalModal(html, wide = false) {
+  closeApprovalModal();
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay open";
+  ov.id = "ap-modal";
+  ov.innerHTML = `<div class="modal-box ${wide ? "ap-modal-wide" : ""}">${html}</div>`;
+  ov.addEventListener("click", (e) => { if (e.target === ov) closeApprovalModal(); });
+  document.addEventListener("keydown", apModalEsc);
+  document.body.appendChild(ov);
+  return ov;
+}
+
+function apModalEsc(e) {
+  if (e.key === "Escape") closeApprovalModal();
+}
+
+function closeApprovalModal() {
+  document.getElementById("ap-modal")?.remove();
+  document.removeEventListener("keydown", apModalEsc);
+}
+
+function confirmDeleteApprovals(refs) {
+  if (!refs.length) return;
+  const names = refs.map((ref) => apItems.find((r) => r.external_ref_id === ref)?.applicant_name || ref);
+  const preview = names.slice(0, 5).map((n) => `<li>${escHtml(n)}</li>`).join("") +
+    (names.length > 5 ? `<li class="cell-muted">และอีก ${names.length - 5} รายการ</li>` : "");
+  const ov = openApprovalModal(`
+  <div class="modal-icon ap-icon-danger">${apSvg("trash")}</div>
+  <div>
+    <div class="modal-title">ยืนยันลบคำขออนุมัติ ${refs.length} รายการ</div>
+    <div class="modal-sub">ลบแล้วกู้คืนไม่ได้ · ลบเฉพาะข้อมูลในเว็บนี้ ไม่ได้ยกเลิกคำขอที่ส่งถึงหัวหน้ากองแล้ว</div>
+  </div>
+  <ul class="ap-delete-list">${preview}</ul>
+  <div class="ap-modal-btns">
+    <button class="btn-modal-cancel" onclick="closeApprovalModal()">ยกเลิก</button>
+    <button class="btn-sm btn-danger ap-btn-confirm" id="ap-confirm-delete">${apSvg("trash")} ลบ ${refs.length} รายการ</button>
+  </div>`);
+  ov.querySelector("#ap-confirm-delete").onclick = () => deleteApprovals(refs, ov.querySelector("#ap-confirm-delete"));
+}
+
+async function deleteApprovals(refs, btn) {
+  btn.disabled = true;
+  btn.textContent = "กำลังลบ...";
+  const fd = new FormData();
+  fd.append("action", "delete_approvals");
+  refs.forEach((r) => fd.append("refs[]", r));
+  let result;
+  try {
+    const res = await fetch("backend/admin_api.php", { method: "POST", body: fd });
+    result = await res.json();
+  } catch (e) {
+    result = { ok: false, error: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้" };
+  }
+  closeApprovalModal();
+  if (result.ok) {
+    showToast(`ลบคำขออนุมัติแล้ว ${result.deleted} รายการ`);
+    fetchApprovals(apPage);
+  } else {
+    showToast(result.error || "ลบไม่สำเร็จ", "error");
+  }
+}
+
+async function refreshApprovalStatus(refs, btn) {
+  if (!refs.length) return;
+  if (refs.length > 50) {
+    showToast("ตรวจสถานะได้ครั้งละไม่เกิน 50 รายการ", "error");
+    return;
+  }
+  if (btn) btn.disabled = true;
+  showToast(`กำลังตรวจสถานะ ${refs.length} รายการจาก CAS...`, "info");
+  const fd = new FormData();
+  fd.append("action", "refresh_approval_status");
+  refs.forEach((r) => fd.append("refs[]", r));
+  let result;
+  try {
+    const res = await fetch("backend/admin_api.php", { method: "POST", body: fd });
+    result = await res.json();
+  } catch (e) {
+    result = { ok: false, error: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้" };
+  }
+  if (btn) btn.disabled = false;
+  if (!result.ok) {
+    showToast(result.error || "ตรวจสถานะไม่สำเร็จ", "error");
+    return;
+  }
+  showToast(
+    `อัปเดตสถานะแล้ว ${result.updated} รายการ` + (result.failed ? ` · ถาม CAS ไม่สำเร็จ ${result.failed} รายการ` : ""),
+    result.failed ? "info" : "success"
+  );
+  await fetchApprovals(apPage);
+  if (document.getElementById("ap-modal") && refs.length === 1) openApprovalDetail(refs[0]);
+}
+
+async function openApprovalDetail(ref) {
+  openApprovalModal('<div class="cell-muted" style="text-align:center;padding:1rem">กำลังโหลด...</div>', true);
+  let result;
+  try {
+    const res = await fetch("backend/admin_api.php?action=get_approval&ref=" + encodeURIComponent(ref));
+    result = await res.json();
+  } catch (e) {
+    result = { ok: false, error: "โหลดข้อมูลไม่สำเร็จ" };
+  }
+  if (!result.ok) {
+    closeApprovalModal();
+    showToast(result.error || "โหลดข้อมูลไม่สำเร็จ", "error");
+    return;
+  }
+  const r = result.data;
+  const kind = r.status_kind || apStatusKind(r.status);
+  const row = (label, value) =>
+    `<div class="ap-dt">${label}</div><div class="ap-dd">${value === undefined || value === null || value === "" ? '<span class="cell-muted">—</span>' : value}</div>`;
+  const ov = openApprovalModal(`
+  <div class="ap-detail-head">
+    <div>
+      <div class="modal-title">${escHtml(r.applicant_name || "—")}</div>
+      <div class="cell-id">${escHtml(r.external_ref_id)}</div>
+    </div>
+    <span class="ap-status ${kind}">${AP_STATUS_LABEL[kind]}</span>
+  </div>
+  <div class="ap-detail-section">ข้อมูลการสมัคร</div>
+  <div class="ap-dl">
+    ${row("หลักสูตร", escHtml(r.course))}
+    ${row("ประเภทสมาชิก", escHtml(r.member_type))}
+    ${row("ผู้เรียนในระบบ", r.student_id ? `#${escHtml(r.student_id)} <span class="cell-muted">(จับคู่จากชื่อ+คอร์ส)</span>` : '<span class="cell-muted">ยังจับคู่ไม่ได้</span>')}
+  </div>
+  <div class="ap-detail-section">ผู้ขอ / หัวหน้ากอง</div>
+  <div class="ap-dl">
+    ${row("ผู้ขอ (AD)", escHtml([r.requester_name, r.requester_ad && `(${r.requester_ad})`].filter(Boolean).join(" ")))}
+    ${row("หัวหน้ากอง", escHtml([r.approver_name, r.approver_ad && `(${r.approver_ad})`].filter(Boolean).join(" ")))}
+    ${row("อีเมล", escHtml(r.approver_email))}
+    ${row("ตำแหน่ง", escHtml(r.approver_position))}
+    ${row("สังกัด", escHtml(r.approver_org))}
+  </div>
+  <div class="ap-detail-section">สถานะ (CAS)</div>
+  <div class="ap-dl">
+    ${row("สถานะดิบ", escHtml(r.status))}
+    ${row("ขั้นอนุมัติ", escHtml(r.approve_step))}
+    ${row("RequestKey", escHtml(r.request_key))}
+    ${row("วันที่ขอ", formatThaiDateTime(r.created_at))}
+    ${row("อัปเดตล่าสุด", formatThaiDateTime(r.updated_at))}
+  </div>
+  <div class="ap-detail-section">ข้อความที่ส่งถึงหัวหน้ากอง</div>
+  <div class="ap-message"><b>${escHtml(r.subject)}</b>\n${escHtml(r.message)}</div>
+  <div class="ap-modal-btns">
+    <button class="btn-sm btn-danger" id="ap-d-delete">${apSvg("trash")} ลบ</button>
+    <button class="btn-sm btn-edit" id="ap-d-refresh">${apSvg("refresh")} ตรวจสถานะจาก CAS</button>
+    <button class="btn-modal-cancel" onclick="closeApprovalModal()">ปิด</button>
+  </div>`, true);
+  ov.querySelector("#ap-d-delete").onclick = () => confirmDeleteApprovals([r.external_ref_id]);
+  ov.querySelector("#ap-d-refresh").onclick = (e) => refreshApprovalStatus([r.external_ref_id], e.currentTarget);
+}
+
+function exportApprovals() {
+  const params = apFilterParams();
+  params.set("action", "export_approvals");
+  window.location.href = "backend/admin_api.php?" + params.toString();
 }
 
 function adminNav(section) {
