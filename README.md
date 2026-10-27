@@ -349,11 +349,21 @@ sequenceDiagram
 
 **สิทธิ์ 2 ระดับ (กันที่ server เป็นหลัก):**
 - ทุก endpoint หลังบ้านเรียก `require_admin.php` → ตอบ 403 ถ้าไม่ได้ล็อกอิน (รับทั้ง admin และ viewer)
-- `admin_api.php` มี `VIEWER_ACTIONS` = `list_courses`, `list_students`, `get_student`, `list_approval_requests`, `get_approval` — action อื่นทั้งหมดเรียก `require_full_admin()` (viewer ได้ 403 "บัญชีนี้มีสิทธิ์ดูข้อมูลอย่างเดียว") และ `active_courses.php` เป็นของแอดมินเท่านั้น
+- `admin_api.php` มี `VIEWER_ACTIONS` = `list_courses`, `list_students`, `list_student_groups`, `get_student`, `list_approval_requests`, `get_approval` — action อื่นทั้งหมดเรียก `require_full_admin()` (viewer ได้ 403 "บัญชีนี้มีสิทธิ์ดูข้อมูลอย่างเดียว") และ `active_courses.php` เป็นของแอดมินเท่านั้น
 - หน้าเว็บ: `auth.js` เก็บ role ใน `sessionStorage` (`admin_role`) ใส่ class `role-viewer` ที่ `<body>` → CSS ซ่อนทุกอย่างที่มี class `admin-write` (ปุ่มเพิ่ม/ลบ, เมนู Airtable, checkbox/ลบหลายรายการ, ส่งออก CSV, ตรวจสถานะ CAS, ปุ่มบันทึก) แสดงป้าย "โหมดดูอย่างเดียว" และ modal แก้ไขกลายเป็นดูอย่างเดียว (`openEditModal()`)
 - **เพิ่มปุ่ม/action ที่แก้ข้อมูลใหม่:** ใส่ class `admin-write` ที่ปุ่ม และ**อย่าใส่** action ใน `VIEWER_ACTIONS`
 
 **จัดการข้อมูล:** `admin.js` → `admin_api.php` (list/add/update/delete ของคอร์สและผู้เรียน, ค้นหา/กรอง/เรียงลำดับ/แบ่งหน้า — คอลัมน์ที่เรียงได้มี whitelist กัน SQL injection ผ่าน `ORDER BY`)
+
+**หน้า "รายชื่อผู้เรียน" (จัดกลุ่มตามคอร์ส แบบ Group by ของ Airtable):**
+```
+loadStudentsTable() → list_student_groups (คอร์ส + จำนวนคนที่ตรงตัวกรอง; StudentRepository::groupCounts)
+   เรียงคอร์ส: ปี พ.ศ. ใหม่ → เก่า แล้ววันที่อบรมใหม่ → เก่า (parseTrainingDateKey)
+กดหัวคอร์ส → sgLoadRows() → list_students&course_id=&per_page=500&sort=id (แคชไว้; เกิน 500 มีปุ่ม "โหลดเพิ่ม")
+```
+- คอลัมน์: ลำดับ, ชื่อ, นามสกุล, วันที่สมัคร, ประเภท (ป้ายสี), อายุ, ระดับการศึกษา (ป้ายเหลือง), หน่วยงาน, ตำแหน่ง, มือถือ, อีเมล, ปุ่มดู/แก้ไข-ลบ (ติดขอบขวา) — ช่องอื่นดูในหน้าต่างแก้ไข/ดูข้อมูล
+- ค้นหาชื่อ/นามสกุล → เหลือเฉพาะคอร์สที่มีคนตรงและกางให้อัตโนมัติ; ตัวกรองปี พ.ศ.; ปุ่มกางทั้งหมด/พับทั้งหมด
+- หลังเพิ่ม/แก้ไข/ลบ โหลดจำนวนและรายชื่อใหม่ โดยคอร์สที่กางอยู่ยังกางอยู่
 
 **นำเข้าจาก Airtable** (ทั้งข้อมูลเก่าและรายการที่ webhook ตกหล่น):
 ```
@@ -558,7 +568,8 @@ Index: `requester_ad`, `created_at DESC`, `status`, `student_id`
 |---|---|
 | `list_courses` | คอร์สทั้งหมด + จำนวนผู้เรียน |
 | `add_course` / `update_course` / `delete_course` | จัดการหลักสูตร |
-| `list_students` | ผู้เรียนแบบแบ่งหน้า (ค้นหา/กรองปี/คอร์ส/เรียง) |
+| `list_students` | ผู้เรียนแบบแบ่งหน้า (ค้นหา/กรองปี/คอร์ส/เรียง; `per_page` ค่าเริ่มต้น 50 สูงสุด 500) |
+| `list_student_groups` | คอร์สทั้งหมด + จำนวนผู้เรียนที่ตรงตัวกรอง (`year_be`, `q`) สำหรับหน้ารายชื่อผู้เรียนแบบกลุ่ม |
 | `get_student` / `add_student` / `update_student` / `delete_student` | จัดการผู้เรียน |
 | `airtable_preview` | ดึง Airtable จัดกลุ่มตามคอร์ส เทียบกับ Neon |
 | `airtable_import_course` | สร้างคอร์ส (ถ้าจำเป็น) + นำเข้านักเรียนที่เลือก ใน transaction เดียว |

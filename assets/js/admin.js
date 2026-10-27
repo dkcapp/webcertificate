@@ -53,11 +53,6 @@ function dismissToast(toast) {
 let currentTab = "download";
 let currentAdminSection = "courses";
 let editContext = null;
-let studentsPage = 1;
-let studentMgmtCourses = [];
-let studentFilters = { q: "", year: "", courseId: "" };
-let studentSort = { col: "first_name", dir: "asc" };
-let studentSearchTimer = null;
 
 function switchTab(tab) {
   currentTab = tab;
@@ -819,200 +814,259 @@ async function deleteCourse(id, name) {
   else showToast(result.error, "error");
 }
 
-async function loadStudentsTable(page) {
-  if (page !== undefined) studentsPage = page;
-  const area = document.getElementById("admin-content-area");
-  area.innerHTML =
-    '<div style="color:var(--text3);padding:2rem;font-size:13px;">กำลังโหลด...</div>';
+// ===== รายชื่อผู้เรียน: จัดกลุ่มตามคอร์ส (แบบ Group by ของ Airtable) =====
+// โหลดรายการคอร์ส + จำนวนคนก่อน (list_student_groups) แล้วค่อยดึงรายชื่อเมื่อกางคอร์สนั้น (list_students)
+const SG_PER_PAGE = 500;
+const SG_COLS = 12;
+const SG_TYPE_COLOR = { "พระภิกษุ": "pink", "สามเณร": "orange", "อาสาสมัคร": "blue", "อุบาสก": "teal", "อุบาสิกา": "purple" };
+const SG_PALETTE = ["pink", "blue", "green", "purple", "orange", "teal"];
+let sgFilters = { q: "", year: "" };
+let sgGroups = [];
+let sgExpanded = new Set(); // id คอร์สที่กางอยู่
+let sgRows = {}; // id คอร์ส → { rows, total, page }
+let sgSearchTimer = null;
 
-  const cRes = await fetch("backend/admin_api.php?action=list_courses");
-  const cResult = await cRes.json();
-  studentMgmtCourses = cResult.ok ? cResult.data : [];
-  const years = [
-    ...new Set(studentMgmtCourses.map((c) => c.year_be).filter(Boolean)),
-  ].sort((a, b) => b - a);
+async function loadStudentsTable() {
+  // ถ้าหน้าเปิดอยู่แล้ว (เช่น หลังบันทึก/ลบ) โหลดข้อมูลใหม่โดยคงคอร์สที่กางไว้
+  if (document.getElementById("sg-table")) return sgReload();
+
+  const area = document.getElementById("admin-content-area");
+  area.innerHTML = '<div style="color:var(--text3);padding:2rem;font-size:13px;">กำลังโหลด...</div>';
+  let courses = [];
+  try {
+    const res = await fetch("backend/admin_api.php?action=list_courses");
+    const result = await res.json();
+    courses = result.ok ? result.data : [];
+  } catch (e) {}
+  const years = [...new Set(courses.map((c) => c.year_be).filter(Boolean))].sort((a, b) => b - a);
 
   area.innerHTML = `
 <div class="admin-page-title">
   <h2><svg viewBox="0 0 24 24" style="width:18px;height:18px;stroke:var(--blue);fill:none;stroke-width:2;vertical-align:-3px;margin-right:6px"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>รายชื่อผู้เรียน</h2>
-  <span class="badge-count" id="students-count-badge">0 คน</span>
+  <span class="badge-count" id="students-count-badge"></span>
 </div>
 <div class="admin-toolbar">
   <div class="admin-search">
     <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    <input type="text" placeholder="ค้นหาชื่อหรือนามสกุล..." id="student-search" oninput="onStudentSearchInput()" autocomplete="off">
+    <input type="text" placeholder="ค้นหาชื่อหรือนามสกุล..." id="student-search" oninput="onStudentSearchInput()" autocomplete="off" value="${escHtml(sgFilters.q)}">
   </div>
   <select id="student-year-filter" class="year-filter-select" onchange="onStudentYearChange()">
     <option value="">ทุกปี</option>
-    ${years.map((y) => `<option value="${y}">พ.ศ. ${y}</option>`).join("")}
+    ${years.map((y) => `<option value="${escHtml(y)}" ${sgFilters.year === y ? "selected" : ""}>พ.ศ. ${escHtml(y)}</option>`).join("")}
   </select>
-  <select id="student-course-filter" class="year-filter-select" onchange="onStudentCourseChange()" disabled>
-    <option value="">— เลือกปีก่อน —</option>
-  </select>
+  <button class="btn-sm btn-edit" onclick="sgExpandAll()">กางทั้งหมด</button>
+  <button class="btn-sm btn-edit" onclick="sgCollapseAll()">พับทั้งหมด</button>
   <button class="btn-sm btn-primary admin-write" onclick="openAddStudent()">
     <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>เพิ่มรายชื่อ
   </button>
 </div>
-<div class="table-card"><div style="overflow-x:auto">
-<table class="data-table">
+<div class="table-card sg-card"><div class="sg-scroll">
+<table class="data-table sg-table" id="sg-table">
   <thead><tr>
-    <th onclick="sortStudentsTable('id')" style="cursor:pointer;user-select:none">รหัส <span id="ssort-id"></span></th>
-    <th onclick="sortStudentsTable('course_name')" style="cursor:pointer;user-select:none">ชื่อคอร์ส <span id="ssort-course_name"></span></th>
-    <th onclick="sortStudentsTable('first_name')" style="cursor:pointer;user-select:none">ชื่อ <span id="ssort-first_name"></span></th>
-    <th onclick="sortStudentsTable('last_name')" style="cursor:pointer;user-select:none">นามสกุล <span id="ssort-last_name"></span></th>
-    <th onclick="sortStudentsTable('member_type')" style="cursor:pointer;user-select:none">ประเภท <span id="ssort-member_type"></span></th>
-    <th onclick="sortStudentsTable('apply_date')" style="cursor:pointer;user-select:none">วันที่สมัคร <span id="ssort-apply_date"></span></th>
-    <th onclick="sortStudentsTable('age')" style="cursor:pointer;user-select:none">อายุ <span id="ssort-age"></span></th>
-    <th onclick="sortStudentsTable('department')" style="cursor:pointer;user-select:none">หน่วยงาน <span id="ssort-department"></span></th>
-    <th onclick="sortStudentsTable('office')" style="cursor:pointer;user-select:none">สำนัก <span id="ssort-office"></span></th>
-    <th onclick="sortStudentsTable('position')" style="cursor:pointer;user-select:none">ตำแหน่ง <span id="ssort-position"></span></th>
-    <th onclick="sortStudentsTable('phone_mobile')" style="cursor:pointer;user-select:none">มือถือ <span id="ssort-phone_mobile"></span></th>
-    <th onclick="sortStudentsTable('email')" style="cursor:pointer;user-select:none">อีเมล <span id="ssort-email"></span></th>
-    <th>จัดการ</th>
+    <th class="sg-num">#</th><th>ชื่อ</th><th>นามสกุล</th><th>วันที่สมัคร</th><th>ประเภท</th><th>อายุ</th>
+    <th>ระดับการศึกษา</th><th>หน่วยงาน</th><th>ตำแหน่ง</th><th>มือถือ</th><th>อีเมล</th><th class="sg-act"></th>
   </tr></thead>
-  <tbody id="students-tbody"></tbody>
-</table></div></div>
-<div class="pagination" id="students-pagination"></div>`;
+</table></div></div>`;
 
-  fetchStudentsRows();
+  document.getElementById("sg-table").addEventListener("click", onStudentGroupClick);
+  sgReload();
 }
 
 function onStudentSearchInput() {
-  clearTimeout(studentSearchTimer);
-  studentSearchTimer = setTimeout(() => {
-    studentFilters.q = document.getElementById("student-search").value.trim();
-    fetchStudentsRows(1);
+  clearTimeout(sgSearchTimer);
+  sgSearchTimer = setTimeout(() => {
+    sgFilters.q = document.getElementById("student-search").value.trim();
+    sgExpanded.clear(); // มีคำค้น → กางทุกคอร์สที่ตรง (ใน sgReload) / ล้างคำค้น → พับทั้งหมด
+    sgReload();
   }, 300);
 }
 
 function onStudentYearChange() {
-  const year = document.getElementById("student-year-filter").value;
-  studentFilters.year = year;
-  studentFilters.courseId = "";
-
-  const courseSelect = document.getElementById("student-course-filter");
-  if (!year) {
-    courseSelect.disabled = true;
-    courseSelect.innerHTML = '<option value="">— เลือกปีก่อน —</option>';
-  } else {
-    const coursesInYear = studentMgmtCourses.filter((c) => c.year_be === year);
-    courseSelect.disabled = false;
-    courseSelect.innerHTML =
-      '<option value="">ทุกคอร์ส</option>' +
-      coursesInYear
-        .map((c) => `<option value="${c.id}">${escHtml(c.short_name)}</option>`)
-        .join("");
-  }
-  fetchStudentsRows(1);
+  sgFilters.year = document.getElementById("student-year-filter").value;
+  sgReload();
 }
 
-function onStudentCourseChange() {
-  studentFilters.courseId = document.getElementById(
-    "student-course-filter",
-  ).value;
-  fetchStudentsRows(1);
+// ปีใหม่ → เก่า แล้วตามวันที่อบรม (ใหม่ → เก่า) ภายในปีเดียวกัน
+function sgSortGroups(groups) {
+  return groups.sort(
+    (a, b) =>
+      (parseInt(b.year_be, 10) || 0) - (parseInt(a.year_be, 10) || 0) ||
+      parseTrainingDateKey(b.training_date) - parseTrainingDateKey(a.training_date) ||
+      String(a.long_key || a.short_name).localeCompare(String(b.long_key || b.short_name), "th"),
+  );
 }
 
-function sortStudentsTable(col) {
-  if (studentSort.col === col)
-    studentSort.dir = studentSort.dir === "asc" ? "desc" : "asc";
-  else {
-    studentSort.col = col;
-    studentSort.dir = "asc";
-  }
-  fetchStudentsRows(1);
-}
-
-async function fetchStudentsRows(page) {
-  if (page !== undefined) studentsPage = page;
-  const tbody = document.getElementById("students-tbody");
-  if (!tbody) return;
-  tbody.innerHTML =
-    '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:1.5rem">กำลังโหลด...</td></tr>';
-
-  const params = {
-    action: "list_students",
-    page: studentsPage,
-    sort: studentSort.col,
-    dir: studentSort.dir,
-  };
-  if (studentFilters.q) params.q = studentFilters.q;
-  if (studentFilters.year) params.year_be = studentFilters.year;
-  if (studentFilters.courseId) params.course_id = studentFilters.courseId;
-
+async function sgReload() {
+  const table = document.getElementById("sg-table");
+  if (!table) return;
+  const params = new URLSearchParams({ action: "list_student_groups" });
+  if (sgFilters.q) params.set("q", sgFilters.q);
+  if (sgFilters.year) params.set("year_be", sgFilters.year);
   let result;
   try {
-    const res = await fetch(
-      "backend/admin_api.php?" + new URLSearchParams(params),
-    );
+    const res = await fetch("backend/admin_api.php?" + params.toString());
     result = await res.json();
   } catch (e) {
-    tbody.innerHTML = `<tr><td colspan="13" style="color:var(--red);padding:1.5rem">❌ ติดต่อ server ไม่สำเร็จ หรือได้รับข้อมูลที่ไม่ถูกต้อง (${e.message})</td></tr>`;
+    result = { ok: false, error: "ติดต่อ server ไม่สำเร็จ" };
+  }
+  table.querySelectorAll("tbody").forEach((tb) => tb.remove());
+  if (!result.ok) {
+    table.insertAdjacentHTML("beforeend", `<tbody><tr><td colspan="${SG_COLS}" style="color:var(--red);padding:1.5rem;text-align:center">❌ ${escHtml(result.error || "เกิดข้อผิดพลาด")}</td></tr></tbody>`);
     return;
+  }
+
+  sgGroups = sgSortGroups(result.data || []);
+  sgRows = {};
+  const ids = new Set(sgGroups.map((g) => String(g.id)));
+  if (sgFilters.q) sgGroups.forEach((g) => sgExpanded.add(String(g.id)));
+  sgExpanded = new Set([...sgExpanded].filter((id) => ids.has(id)));
+
+  document.getElementById("students-count-badge").textContent =
+    `รวม ${(result.total || 0).toLocaleString("th-TH")} คน · ${sgGroups.length} คอร์ส`;
+
+  table.insertAdjacentHTML(
+    "beforeend",
+    sgGroups.map((g) => `<tbody class="sg-group" data-id="${escHtml(g.id)}">${sgHeadRow(g)}</tbody>`).join("") ||
+      `<tbody><tr><td colspan="${SG_COLS}" style="text-align:center;color:var(--text3);padding:1.5rem">${sgFilters.q ? "ไม่พบผู้เรียนที่ตรงกับคำค้น" : "ยังไม่มีคอร์ส"}</td></tr></tbody>`,
+  );
+  // โหลดรายชื่อของคอร์สที่กางอยู่ทีละคอร์ส
+  for (const id of sgExpanded) await sgLoadRows(id);
+}
+
+function sgHeadRow(g) {
+  const open = sgExpanded.has(String(g.id));
+  const meta = [g.training_date, g.year_be ? "พ.ศ. " + g.year_be : ""].filter(Boolean).join(" · ");
+  return `<tr class="sg-head ${open ? "open" : ""}" data-act="toggle">
+  <td colspan="${SG_COLS}"><div class="sg-head-inner">
+    <span class="sg-chev"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>
+    <div class="sg-head-text">
+      <div class="sg-label">โปรแกรมที่สมัคร</div>
+      <span class="sg-course" title="${escHtml(g.long_key || g.short_name)}">${escHtml(g.long_key || g.short_name)}</span>
+    </div>
+    <span class="sg-count">${g.student_count} คน</span>
+    ${meta ? `<span class="sg-meta">${escHtml(meta)}</span>` : ""}
+  </div></td>
+</tr>`;
+}
+
+function onStudentGroupClick(e) {
+  const more = e.target.closest("[data-act='more']");
+  if (more) return sgLoadRows(more.closest("tbody").dataset.id, true);
+  const head = e.target.closest("tr.sg-head");
+  if (head) sgToggle(head.closest("tbody").dataset.id);
+}
+
+function sgToggle(id) {
+  if (sgExpanded.has(id)) {
+    sgExpanded.delete(id);
+    sgRenderRows(id);
+  } else {
+    sgExpanded.add(id);
+    sgRows[id] ? sgRenderRows(id) : sgLoadRows(id);
+  }
+}
+
+async function sgExpandAll() {
+  for (const g of sgGroups) {
+    const id = String(g.id);
+    if (sgExpanded.has(id)) continue;
+    sgExpanded.add(id);
+    if (sgRows[id]) sgRenderRows(id);
+    else await sgLoadRows(id);
+  }
+}
+
+function sgCollapseAll() {
+  const ids = [...sgExpanded];
+  sgExpanded.clear();
+  ids.forEach(sgRenderRows);
+}
+
+async function sgLoadRows(id, more = false) {
+  const tbody = document.querySelector(`#sg-table tbody[data-id="${CSS.escape(id)}"]`);
+  if (!tbody) return;
+  const prev = more ? sgRows[id] : null;
+  const page = prev ? prev.page + 1 : 1;
+  if (!prev) {
+    sgClearRows(tbody);
+    tbody.insertAdjacentHTML("beforeend", `<tr class="sg-row sg-note"><td colspan="${SG_COLS}">กำลังโหลด...</td></tr>`);
+  }
+  tbody.querySelector(".sg-head").classList.add("open");
+
+  const params = new URLSearchParams({ action: "list_students", course_id: id, page, per_page: SG_PER_PAGE, sort: "id", dir: "asc" });
+  if (sgFilters.q) params.set("q", sgFilters.q);
+  let result;
+  try {
+    const res = await fetch("backend/admin_api.php?" + params.toString());
+    result = await res.json();
+  } catch (e) {
+    result = { ok: false, error: "ติดต่อ server ไม่สำเร็จ" };
   }
   if (!result.ok) {
-    tbody.innerHTML = `<tr><td colspan="13" style="color:var(--red);padding:1.5rem">❌ ${result.error}</td></tr>`;
+    sgClearRows(tbody);
+    tbody.insertAdjacentHTML("beforeend", `<tr class="sg-row sg-note"><td colspan="${SG_COLS}" style="color:var(--red)">❌ ${escHtml(result.error || "เกิดข้อผิดพลาด")}</td></tr>`);
     return;
   }
+  sgRows[id] = { rows: (prev ? prev.rows : []).concat(result.data || []), total: result.total || 0, page };
+  sgRenderRows(id);
+}
 
-  const { data, total, limit } = result;
-  const totalPages = Math.ceil(total / limit) || 1;
+function sgClearRows(tbody) {
+  tbody.querySelectorAll(".sg-row").forEach((tr) => tr.remove());
+}
 
-  document.getElementById("students-count-badge").textContent = total + " คน";
+// "2026-07-21" → "21/7/2026" (รูปแบบเดียวกับ Airtable) ค่าอื่นแสดงตามเดิม
+function sgDate(v) {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(v || "");
+  return m ? `${+m[3]}/${+m[2]}/${m[1]}` : v || "";
+}
 
-  [
-    "id",
-    "course_name",
-    "first_name",
-    "last_name",
-    "member_type",
-    "apply_date",
-    "age",
-    "department",
-    "office",
-    "position",
-    "phone_mobile",
-    "email",
-  ].forEach((c) => {
-    const el = document.getElementById("ssort-" + c);
-    if (el)
-      el.textContent =
-        studentSort.col === c
-          ? studentSort.dir === "asc"
-            ? " ▲"
-            : " ▼"
-          : "";
-  });
+function sgPill(text, color) {
+  return text ? `<span class="sg-pill ${color}">${escHtml(text)}</span>` : "";
+}
 
-  tbody.innerHTML =
-    data
-      .map(
-        (r) => `<tr>
-    <td class="cell-id">${r.id}</td>
-    <td style="font-size:12px;color:var(--blue);white-space:nowrap;font-weight:500">${escHtml(r.course_name)}</td>
+function sgTypeColor(type) {
+  if (SG_TYPE_COLOR[type]) return SG_TYPE_COLOR[type];
+  let h = 0;
+  for (const ch of String(type)) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return SG_PALETTE[h % SG_PALETTE.length];
+}
+
+function sgRenderRows(id) {
+  const tbody = document.querySelector(`#sg-table tbody[data-id="${CSS.escape(id)}"]`);
+  if (!tbody) return;
+  sgClearRows(tbody);
+  const open = sgExpanded.has(id);
+  tbody.querySelector(".sg-head").classList.toggle("open", open);
+  if (!open || !sgRows[id]) return;
+
+  const { rows, total } = sgRows[id];
+  let html = rows
+    .map((r, i) => {
+      const name = `${r.first_name} ${r.last_name || ""}`.trim();
+      return `<tr class="sg-row">
+    <td class="sg-num">${i + 1}</td>
     <td><strong style="font-weight:600">${escHtml(r.first_name)}</strong></td>
-    <td>${escHtml(r.last_name || "—")}</td>
-    <td class="cell-muted">${escHtml(r.member_type || "—")}</td>
-    <td class="cell-muted" style="white-space:nowrap">${escHtml(r.apply_date || "—")}</td>
-    <td class="cell-muted" style="text-align:center">${escHtml(r.age || "—")}</td>
-    <td class="cell-muted">${escHtml(r.department || "—")}</td>
-    <td class="cell-muted">${escHtml(r.office || "—")}</td>
-    <td class="cell-muted">${escHtml(r.position || "—")}</td>
-    <td class="cell-muted" style="white-space:nowrap">${escHtml(r.phone_mobile || "—")}</td>
-    <td class="cell-muted">${escHtml(r.email || "—")}</td>
-    <td><div class="actions">
+    <td>${escHtml(r.last_name || "")}</td>
+    <td class="cell-muted" style="white-space:nowrap">${escHtml(sgDate(r.apply_date))}</td>
+    <td>${sgPill(r.member_type, sgTypeColor(r.member_type))}</td>
+    <td class="cell-muted">${escHtml(r.age || "")}</td>
+    <td>${sgPill(r.education_level, "yellow")}</td>
+    <td class="cell-muted sg-clip" title="${escHtml(r.department || "")}">${escHtml(r.department || "")}</td>
+    <td class="cell-muted sg-clip" title="${escHtml(r.position || "")}">${escHtml(r.position || "")}</td>
+    <td class="cell-muted" style="white-space:nowrap">${escHtml(r.phone_mobile || "")}</td>
+    <td class="cell-muted">${escHtml(r.email || "")}</td>
+    <td class="sg-act"><div class="actions">
       <button class="btn-sm btn-edit" onclick="openEditStudent(${r.id})" title="${isViewer() ? "ดูข้อมูล" : "แก้ไข"}"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-      <button class="btn-sm btn-danger admin-write" onclick="deleteStudent(${r.id},'${escHtml(r.first_name + " " + (r.last_name || ""))}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+      <button class="btn-sm btn-danger admin-write" onclick="deleteStudent(${r.id}, ${escHtml(JSON.stringify(name))})"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
     </div></td>
-  </tr>`,
-      )
-      .join("") ||
-    '<tr><td colspan="13" style="text-align:center;color:var(--text3);padding:1.5rem">ไม่พบข้อมูล</td></tr>';
-
-  document.getElementById("students-pagination").innerHTML = `
-  <button class="page-btn" onclick="fetchStudentsRows(${studentsPage - 1})" ${studentsPage <= 1 ? "disabled" : ""}><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-  <span class="page-info">หน้า ${studentsPage} / ${totalPages}</span>
-  <button class="page-btn" onclick="fetchStudentsRows(${studentsPage + 1})" ${studentsPage >= totalPages ? "disabled" : ""}><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>`;
+  </tr>`;
+    })
+    .join("");
+  if (!rows.length) html = `<tr class="sg-row sg-note"><td colspan="${SG_COLS}">ยังไม่มีผู้เรียนในคอร์สนี้</td></tr>`;
+  else if (rows.length < total)
+    html += `<tr class="sg-row sg-note"><td colspan="${SG_COLS}">แสดง ${rows.length} จาก ${total} คน · <button type="button" class="sg-more" data-act="more">โหลดเพิ่ม</button></td></tr>`;
+  tbody.insertAdjacentHTML("beforeend", html);
 }
 
 async function fetchCoursesForSelect(selectedId = "") {

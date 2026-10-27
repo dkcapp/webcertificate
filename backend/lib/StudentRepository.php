@@ -132,7 +132,7 @@ class StudentRepository
         $stmt = $this->pdo->prepare("
             SELECT s.id, s.course_id, s.airtable_id, s.first_name, s.last_name,
                    s.member_type, s.apply_date, s.age, s.department, s.office,
-                   s.position, s.email, s.phone_mobile, s.attendance,
+                   s.position, s.email, s.phone_mobile, s.attendance, s.education_level,
                    c.short_name as course_name, c.year_be
             FROM students s
             INNER JOIN courses c ON c.id = s.course_id
@@ -143,6 +143,45 @@ class StudentRepository
         $stmt->execute($params);
 
         return ['data' => $stmt->fetchAll(), 'total' => $total];
+    }
+
+    /**
+     * คอร์สทั้งหมด + จำนวนผู้เรียนที่ตรงตัวกรอง (หน้า admin "รายชื่อผู้เรียน" แบบจัดกลุ่มตามคอร์ส)
+     * $filters: year_be, q (ค้นหาชื่อ/นามสกุล) — ถ้ามี q จะคืนเฉพาะคอร์สที่มีคนตรงคำค้น
+     */
+    public function groupCounts(array $filters): array
+    {
+        $courseCond = [];
+        $params     = [];
+        if (!empty($filters['year_be'])) {
+            $courseCond[] = 'c.year_be = :yb';
+            $params[':yb'] = $filters['year_be'];
+        }
+        $joinCond = 's.course_id = c.id';
+        $q = trim((string) ($filters['q'] ?? ''));
+        if ($q !== '') {
+            $joinCond .= ' AND (s.first_name LIKE :q1 OR s.last_name LIKE :q2)';
+            $params[':q1'] = '%' . $q . '%';
+            $params[':q2'] = '%' . $q . '%';
+        }
+        $where  = $courseCond ? 'WHERE ' . implode(' AND ', $courseCond) : '';
+        $having = $q !== '' ? 'HAVING COUNT(s.id) > 0' : '';
+
+        $stmt = $this->pdo->prepare("
+            SELECT c.id, c.short_name, c.long_key, c.training_date, c.year_be, COUNT(s.id) AS student_count
+            FROM courses c
+            LEFT JOIN students s ON $joinCond
+            $where
+            GROUP BY c.id
+            $having
+        ");
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
+        foreach ($rows as &$r) {
+            $r['student_count'] = (int) $r['student_count'];
+        }
+        unset($r);
+        return ['groups' => $rows, 'total' => array_sum(array_column($rows, 'student_count'))];
     }
 
     public function find(int $id): ?array

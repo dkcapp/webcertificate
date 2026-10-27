@@ -91,7 +91,7 @@ function csv_safe($v): string
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
 // ผู้ดูอย่างเดียว (VIEWER_USER) เรียกได้เฉพาะ action ที่อ่านข้อมูล ที่เหลือต้องเป็นแอดมิน
-const VIEWER_ACTIONS = ['list_courses', 'list_students', 'get_student', 'list_approval_requests', 'get_approval'];
+const VIEWER_ACTIONS = ['list_courses', 'list_students', 'list_student_groups', 'get_student', 'list_approval_requests', 'get_approval'];
 if (!in_array($action, VIEWER_ACTIONS, true)) {
     require_full_admin();
 }
@@ -151,7 +151,7 @@ try {
 
     if ($action === 'list_students') {
         $page  = max(1, (int)($_GET['page'] ?? 1));
-        $limit = 50;
+        $limit = min(500, max(1, (int)($_GET['per_page'] ?? 50))); // มุมมองกลุ่มดึงทั้งคอร์สทีเดียว (สูงสุด 500)
 
         $sortKey = $_GET['sort'] ?? 'first_name';
         if (!StudentRepository::isSortable($sortKey)) {
@@ -177,6 +177,16 @@ try {
             'page'  => $page,
             'limit' => $limit,
         ]);
+        exit;
+    }
+
+    // คอร์ส + จำนวนผู้เรียนที่ตรงตัวกรอง สำหรับหน้า "รายชื่อผู้เรียน" แบบจัดกลุ่ม (รายชื่อโหลดตอนกางคอร์ส ผ่าน list_students)
+    if ($action === 'list_student_groups') {
+        $result = $studentRepo->groupCounts([
+            'year_be' => trim($_GET['year_be'] ?? ''),
+            'q'       => trim($_GET['q'] ?? ''),
+        ]);
+        echo json_encode(['ok' => true, 'data' => $result['groups'], 'total' => $result['total']]);
         exit;
     }
 

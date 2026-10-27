@@ -191,6 +191,91 @@ body {
   display: flex;
 }
 
+/* ===== รายชื่อผู้เรียน: จัดกลุ่มตามคอร์ส ===== */
+.sg-scroll {
+  overflow: auto;
+  max-height: calc(100vh - 230px);
+  min-height: 240px;
+}
+.sg-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg);
+}
+.sg-table .sg-num { width: 44px; color: var(--text3); font-size: 12px; text-align: right; }
+.sg-head td {
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+.data-table tbody tr.sg-head:hover td { background: var(--blue-xlight); }
+.sg-head-inner { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.sg-chev { display: inline-flex; flex-shrink: 0; transition: transform 0.15s; }
+.sg-chev svg { width: 16px; height: 16px; stroke: var(--text2); fill: none; stroke-width: 2; }
+.sg-head.open .sg-chev { transform: rotate(90deg); }
+.sg-head-text { min-width: 0; }
+.sg-label { font-size: 10.5px; color: var(--text3); margin-bottom: 2px; }
+.sg-course {
+  display: inline-block;
+  max-width: min(560px, 60vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: var(--blue-light);
+  color: var(--navy);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.sg-count { flex-shrink: 0; font-size: 12px; color: var(--text2); font-weight: 600; }
+.sg-meta { flex-shrink: 0; font-size: 12px; color: var(--text3); white-space: nowrap; }
+.sg-row td { white-space: nowrap; }
+/* คอลัมน์ปุ่ม ดู/ลบ ติดขอบขวาเสมอ (ไม่ต้องเลื่อนไปหา) */
+.sg-table .sg-act {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--white);
+  box-shadow: -6px 0 8px -6px rgba(15, 23, 42, 0.12);
+}
+.sg-table thead th.sg-act { z-index: 3; background: var(--bg); }
+.data-table tbody tr.sg-row:hover td.sg-act { background: var(--blue-xlight); }
+.sg-clip { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+.sg-note td { text-align: center; color: var(--text3); padding: 1rem; font-size: 12.5px; }
+.sg-more {
+  border: none;
+  background: none;
+  color: var(--blue);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.sg-pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.sg-pill.pink { background: #ffdce5; color: #9d174d; }
+.sg-pill.blue { background: #d6e8ff; color: #1e40af; }
+.sg-pill.green { background: #d1fae5; color: #047857; }
+.sg-pill.purple { background: #ede4ff; color: #6b21a8; }
+.sg-pill.orange { background: #ffe8d1; color: #9a3412; }
+.sg-pill.teal { background: #ccf5f1; color: #0f766e; }
+.sg-pill.yellow { background: #fff0b8; color: #854d0e; }
+@media (max-width: 767px) {
+  .sg-scroll { max-height: none; }
+  .sg-meta { display: none; }
+}
+
 /* ===== บัญชีดูอย่างเดียว (role viewer) ===== */
 /* ซ่อนปุ่ม/เมนูที่เพิ่ม แก้ไข ลบ นำเข้า ส่งออก — ฝั่ง server ปฏิเสธ action เหล่านี้อีกชั้น */
 body.role-viewer .admin-write { display: none !important; }
