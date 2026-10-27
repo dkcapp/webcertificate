@@ -952,6 +952,8 @@ function sgHeadRow(g) {
 function onStudentGroupClick(e) {
   const more = e.target.closest("[data-act='more']");
   if (more) return sgLoadRows(more.closest("tbody").dataset.id, true);
+  const add = e.target.closest("tr[data-act='add']");
+  if (add) return openAddStudent(add.closest("tbody").dataset.id);
   const head = e.target.closest("tr.sg-head");
   if (head) sgToggle(head.closest("tbody").dataset.id);
 }
@@ -1066,6 +1068,11 @@ function sgRenderRows(id) {
   if (!rows.length) html = `<tr class="sg-row sg-note"><td colspan="${SG_COLS}">ยังไม่มีผู้เรียนในคอร์สนี้</td></tr>`;
   else if (rows.length < total)
     html += `<tr class="sg-row sg-note"><td colspan="${SG_COLS}">แสดง ${rows.length} จาก ${total} คน · <button type="button" class="sg-more" data-act="more">โหลดเพิ่ม</button></td></tr>`;
+  // แถวว่างท้ายคอร์ส สำหรับเพิ่มรายชื่อเข้าคอร์สนี้ (ซ่อนสำหรับบัญชีดูอย่างเดียว)
+  html += `<tr class="sg-row sg-add admin-write" data-act="add" title="เพิ่มรายชื่อในคอร์สนี้">
+    <td class="sg-num"><span class="sg-add-plus">+</span></td>
+    <td colspan="${SG_COLS - 1}">เพิ่มรายชื่อ</td>
+  </tr>`;
   tbody.insertAdjacentHTML("beforeend", html);
 }
 
@@ -1104,9 +1111,9 @@ async function openEditStudent(id) {
   openEditModal();
 }
 
-async function openAddStudent() {
+async function openAddStudent(courseId = "") {
   editContext = { type: "student", id: null };
-  const courseSelect = await fetchCoursesForSelect("");
+  const courseSelect = await fetchCoursesForSelect(courseId);
   document.getElementById("edit-modal-title").textContent = "เพิ่มรายชื่อผู้เรียนใหม่";
   document.getElementById("edit-modal-body").innerHTML =
     `<div class="edit-grid">

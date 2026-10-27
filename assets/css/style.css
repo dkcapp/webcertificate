@@ -248,6 +248,9 @@ body {
 .data-table tbody tr.sg-row:hover td.sg-act { background: var(--blue-xlight); }
 .sg-clip { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
 .sg-note td { text-align: center; color: var(--text3); padding: 1rem; font-size: 12.5px; }
+.sg-add td { color: var(--text3); cursor: pointer; padding-top: 9px; padding-bottom: 9px; border-bottom: 1px solid var(--border); }
+.data-table tbody tr.sg-add:hover td { background: var(--blue-xlight); color: var(--blue); }
+.sg-add-plus { font-size: 17px; font-weight: 500; line-height: 1; color: var(--blue); }
 .sg-more {
   border: none;
   background: none;
