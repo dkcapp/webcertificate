@@ -90,6 +90,12 @@ function csv_safe($v): string
 
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
+// ผู้ดูอย่างเดียว (VIEWER_USER) เรียกได้เฉพาะ action ที่อ่านข้อมูล ที่เหลือต้องเป็นแอดมิน
+const VIEWER_ACTIONS = ['list_courses', 'list_students', 'get_student', 'list_approval_requests', 'get_approval'];
+if (!in_array($action, VIEWER_ACTIONS, true)) {
+    require_full_admin();
+}
+
 try {
     if ($action === 'list_courses') {
         echo json_encode(['ok' => true, 'data' => $courseRepo->listWithStudentCount()]);

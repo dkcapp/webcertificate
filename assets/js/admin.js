@@ -133,7 +133,7 @@ function loadApprovalsPage() {
   <span class="badge-count" id="ap-count-badge">0 รายการ</span>
   <div class="ap-title-actions">
     <button class="btn-sm btn-edit" onclick="fetchApprovals(apPage)" title="โหลดข้อมูลใหม่">${apSvg("refresh")} รีเฟรช</button>
-    <button class="btn-sm btn-primary" onclick="exportApprovals()" title="ส่งออกตามตัวกรองปัจจุบัน">${apSvg("download")} ส่งออก CSV</button>
+    <button class="btn-sm btn-primary admin-write" onclick="exportApprovals()" title="ส่งออกตามตัวกรองปัจจุบัน">${apSvg("download")} ส่งออก CSV</button>
   </div>
 </div>
 
@@ -176,7 +176,7 @@ function loadApprovalsPage() {
   <div class="ap-active-filters" id="ap-active-filters"></div>
 </div>
 
-<div class="ap-bulk-bar" id="ap-bulk-bar" hidden>
+<div class="ap-bulk-bar admin-write" id="ap-bulk-bar" hidden>
   <span id="ap-bulk-count">เลือก 0 รายการ</span>
   <div class="ap-bulk-actions">
     <button class="btn-sm btn-edit" onclick="refreshApprovalStatus([...apSelected])" title="ถามสถานะล่าสุดจาก CAS">${apSvg("refresh")} ตรวจสถานะจาก CAS</button>
@@ -188,7 +188,7 @@ function loadApprovalsPage() {
 <div class="table-card"><div style="overflow-x:auto">
 <table class="data-table ap-table">
   <thead><tr>
-    <th class="ap-col-check"><input type="checkbox" id="ap-check-all" onchange="toggleApprovalSelectAll(this.checked)" title="เลือกทั้งหมดในหน้านี้"></th>
+    <th class="ap-col-check admin-write"><input type="checkbox" id="ap-check-all" onchange="toggleApprovalSelectAll(this.checked)" title="เลือกทั้งหมดในหน้านี้"></th>
     <th>วันที่ขอ</th><th>ผู้สมัคร</th><th>คอร์ส</th><th>ประเภท</th>
     <th>ผู้ขอ (AD)</th><th>หัวหน้ากอง</th><th>สถานะ</th><th>อัปเดตล่าสุด</th><th></th>
   </tr></thead>
@@ -343,7 +343,7 @@ async function fetchApprovals(page = 1) {
         const kind = apStatusKind(r.status);
         const ref = escHtml(r.external_ref_id);
         return `<tr data-ref="${ref}">
-    <td class="ap-col-check"><input type="checkbox" class="ap-row-check" value="${ref}"></td>
+    <td class="ap-col-check admin-write"><input type="checkbox" class="ap-row-check" value="${ref}"></td>
     <td style="white-space:nowrap">${formatThaiDateTime(r.created_at)}</td>
     <td><div class="ap-name">${escHtml(r.applicant_name || "—")}</div><div class="cell-id">${ref}</div></td>
     <td class="ap-course-cell">${escHtml(r.course || "—")}</td>
@@ -354,7 +354,7 @@ async function fetchApprovals(page = 1) {
     <td style="white-space:nowrap">${formatThaiDateTime(r.updated_at)}</td>
     <td><div class="actions">
       <button class="btn-sm btn-edit" data-act="view" title="ดูรายละเอียด">${apSvg("eye")}</button>
-      <button class="btn-sm btn-danger" data-act="delete" title="ลบ">${apSvg("trash")}</button>
+      <button class="btn-sm btn-danger admin-write" data-act="delete" title="ลบ">${apSvg("trash")}</button>
     </div></td>
   </tr>`;
       })
@@ -558,8 +558,8 @@ async function openApprovalDetail(ref) {
   <div class="ap-detail-section">ข้อความที่ส่งถึงหัวหน้ากอง</div>
   <div class="ap-message"><b>${escHtml(r.subject)}</b>\n${escHtml(r.message)}</div>
   <div class="ap-modal-btns">
-    <button class="btn-sm btn-danger" id="ap-d-delete">${apSvg("trash")} ลบ</button>
-    <button class="btn-sm btn-edit" id="ap-d-refresh">${apSvg("refresh")} ตรวจสถานะจาก CAS</button>
+    <button class="btn-sm btn-danger admin-write" id="ap-d-delete">${apSvg("trash")} ลบ</button>
+    <button class="btn-sm btn-edit admin-write" id="ap-d-refresh">${apSvg("refresh")} ตรวจสถานะจาก CAS</button>
     <button class="btn-modal-cancel" onclick="closeApprovalModal()">ปิด</button>
   </div>`, true);
   ov.querySelector("#ap-d-delete").onclick = () => confirmDeleteApprovals([r.external_ref_id]);
@@ -651,7 +651,7 @@ async function loadCoursesTable() {
     <option value="">ทุกปี</option>
     ${years.map((y) => `<option value="${y}">พ.ศ. ${y}</option>`).join("")}
   </select>
-  <button class="btn-sm btn-primary" onclick="openAddCourse()">
+  <button class="btn-sm btn-primary admin-write" onclick="openAddCourse()">
     <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>เพิ่มคอร์สใหม่
   </button>
 </div>
@@ -754,8 +754,8 @@ function renderCourseTable() {
     <td>${r.student_count} คน</td>
     <td class="cell-link">${r.verify_url ? `<a href="${escHtml(r.verify_url)}" target="_blank"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>ลิงก์</a>` : '<span class="cell-muted">—</span>'}</td>
     <td><div class="actions">
-      <button class="btn-sm btn-edit" onclick="openEditCourse(${r.id})"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>แก้ไข</button>
-      <button class="btn-sm btn-danger" onclick="deleteCourse(${r.id},'${escHtml(r.short_name)}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+      <button class="btn-sm btn-edit" onclick="openEditCourse(${r.id})"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg><span class="admin-write">แก้ไข</span><span class="viewer-only">ดู</span></button>
+      <button class="btn-sm btn-danger admin-write" onclick="deleteCourse(${r.id},'${escHtml(r.short_name)}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
     </div></td>
   </tr>`,
       )
@@ -774,7 +774,7 @@ async function openEditCourse(id) {
   if (!row) return;
   editContext = { type: "course", id };
   document.getElementById("edit-modal-title").textContent =
-    `แก้ไขคอร์ส: ${row.short_name}`;
+    `${isViewer() ? "ข้อมูลคอร์ส" : "แก้ไขคอร์ส"}: ${row.short_name}`;
   document.getElementById("edit-modal-body").innerHTML =
     `<div class="edit-grid">
     <div class="edit-field full"><label>ชื่อย่อ (short_name) *</label><input type="text" id="ef-short_name" value="${escHtml(row.short_name)}"></div>
@@ -783,7 +783,7 @@ async function openEditCourse(id) {
     <div class="edit-field"><label>ปี พ.ศ.</label><input type="text" id="ef-year_be" value="${escHtml(row.year_be || "")}" placeholder="เช่น 2568" maxlength="4" inputmode="numeric" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
     <div class="edit-field"><label>Verify URL (QR code)</label><input type="text" id="ef-verify_url" value="${escHtml(row.verify_url || "")}"></div>
   </div>`;
-  document.getElementById("edit-modal-overlay").classList.add("open");
+  openEditModal();
 }
 
 function openAddCourse() {
@@ -797,7 +797,7 @@ function openAddCourse() {
     <div class="edit-field"><label>ปี พ.ศ.</label><input type="text" id="ef-year_be" placeholder="เช่น 2568" maxlength="4" inputmode="numeric" oninput="this.value=this.value.replace(/[^0-9]/g,'')"></div>
     <div class="edit-field"><label>Verify URL (QR code)</label><input type="text" id="ef-verify_url" placeholder="https://..."></div>
   </div>`;
-  document.getElementById("edit-modal-overlay").classList.add("open");
+  openEditModal();
 }
 
 async function deleteCourse(id, name) {
@@ -849,7 +849,7 @@ async function loadStudentsTable(page) {
   <select id="student-course-filter" class="year-filter-select" onchange="onStudentCourseChange()" disabled>
     <option value="">— เลือกปีก่อน —</option>
   </select>
-  <button class="btn-sm btn-primary" onclick="openAddStudent()">
+  <button class="btn-sm btn-primary admin-write" onclick="openAddStudent()">
     <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>เพิ่มรายชื่อ
   </button>
 </div>
@@ -1001,8 +1001,8 @@ async function fetchStudentsRows(page) {
     <td class="cell-muted" style="white-space:nowrap">${escHtml(r.phone_mobile || "—")}</td>
     <td class="cell-muted">${escHtml(r.email || "—")}</td>
     <td><div class="actions">
-      <button class="btn-sm btn-edit" onclick="openEditStudent(${r.id})"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-      <button class="btn-sm btn-danger" onclick="deleteStudent(${r.id},'${escHtml(r.first_name + " " + (r.last_name || ""))}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+      <button class="btn-sm btn-edit" onclick="openEditStudent(${r.id})" title="${isViewer() ? "ดูข้อมูล" : "แก้ไข"}"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+      <button class="btn-sm btn-danger admin-write" onclick="deleteStudent(${r.id},'${escHtml(r.first_name + " " + (r.last_name || ""))}')"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
     </div></td>
   </tr>`,
       )
@@ -1032,7 +1032,7 @@ async function openEditStudent(id) {
   editContext = { type: "student", id };
   const courseSelect = await fetchCoursesForSelect(r.course_id);
   document.getElementById("edit-modal-title").textContent =
-    `แก้ไขข้อมูล: ${r.first_name} ${r.last_name || ""}`;
+    `${isViewer() ? "ข้อมูลผู้เรียน" : "แก้ไขข้อมูล"}: ${r.first_name} ${r.last_name || ""}`;
   document.getElementById("edit-modal-body").innerHTML =
     `<div class="edit-grid">
     <div class="edit-field full"><label>คอร์สที่ลงเรียน *</label>${courseSelect}</div>
@@ -1047,7 +1047,7 @@ async function openEditStudent(id) {
     ${ef("email", "Email", r.email, "full")}
     ${ef("head_status", "สถานะหัวหน้ากอง", r.head_status)}${ef("attendance", "การเข้าอบรม", r.attendance)}
   </div>`;
-  document.getElementById("edit-modal-overlay").classList.add("open");
+  openEditModal();
 }
 
 async function openAddStudent() {
@@ -1068,6 +1068,18 @@ async function openAddStudent() {
     ${ef("email", "Email", "", "full")}
     ${ef("head_status", "สถานะหัวหน้ากอง", "")}${ef("attendance", "การเข้าอบรม", "")}
   </div>`;
+  openEditModal();
+}
+
+// เปิด modal แก้ไข — ถ้าเป็นผู้ดูอย่างเดียว ช่องทั้งหมดอ่านได้อย่างเดียว (ปุ่มบันทึกถูกซ่อนด้วย .admin-write)
+function openEditModal() {
+  const viewer = isViewer();
+  document.querySelectorAll("#edit-modal-body input, #edit-modal-body select, #edit-modal-body textarea").forEach((el) => {
+    if (el.tagName === "SELECT") el.disabled = viewer;
+    else el.readOnly = viewer;
+  });
+  const back = document.querySelector("#edit-modal-overlay .btn-modal-back");
+  if (back) back.textContent = viewer ? "ปิด" : "ยกเลิก";
   document.getElementById("edit-modal-overlay").classList.add("open");
 }
 
@@ -1090,7 +1102,7 @@ async function deleteStudent(id, name) {
 }
 
 async function saveEdit() {
-  if (!editContext) return;
+  if (!editContext || isViewer()) return;
   const btn = document.getElementById("btn-edit-save");
   btn.disabled = true;
   btn.textContent = "กำลังบันทึก...";
@@ -1458,7 +1470,7 @@ function openAirtableCourseModal(courseName, isNew) {
       <tbody>${studentRowsHtml}</tbody>
     </table></div></div>`;
 
-  document.getElementById("edit-modal-overlay").classList.add("open");
+  openEditModal();
 }
 
 function toggleSelectAllAirtableModal(select) {

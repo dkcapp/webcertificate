@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/lib/require_admin.php';
+require_full_admin(); // เปิด/ปิดรับสมัคร + sync JotForm เป็นงานของแอดมินเท่านั้น
 header('Access-Control-Allow-Origin: *');
 
 require_once __DIR__ . '/lib/error_handler.php';

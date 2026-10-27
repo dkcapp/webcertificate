@@ -44,6 +44,7 @@
 | **ผู้สมัครเรียนใหม่** | กรอกฟอร์ม JotForm ของบริษัท → เห็นหน้า "ขอบคุณ" + QR กลุ่มไลน์ → (ถ้ามีบัญชี AD) เลือกส่งคำขออนุมัติถึงหัวหน้ากอง | JotForm → `thankyou.html` |
 | **หัวหน้ากอง** | ได้อีเมลจากระบบ CAS ของ DKC แล้วกด "อนุมัติ / ไม่อนุมัติ" | อีเมล / ระบบ CAS (ไม่ใช่เว็บนี้) |
 | **เจ้าหน้าที่ (แอดมิน)** | จัดการหลักสูตร/รายชื่อผู้เรียน, ดูสถานะคำขออนุมัติทั้งหมด, นำเข้าข้อมูลจาก Airtable | `index.html` → แท็บแอดมิน (ต้องล็อกอิน) |
+| **ผู้ดูอย่างเดียว (viewer)** | ดูหลักสูตร รายชื่อผู้เรียน (ข้อมูลครบ) และคำขออนุมัติ/สถานะ + ตัวกรอง — **เพิ่ม/แก้/ลบ/นำเข้า/ส่งออก CSV/ตรวจสถานะ CAS ไม่ได้** | `index.html` → ล็อกอินด้วย `VIEWER_USER` |
 
 **แนวคิดสำคัญ 3 ข้อ** (ถ้าจำได้แค่นี้ ก็เข้าใจครึ่งหนึ่งของระบบแล้ว)
 1. **Dual-write:** ข้อมูลผู้สมัครเข้า **2 ที่พร้อมกัน** — Airtable ของบริษัท (ระบบเดิม ไม่แตะ) และ Neon (ฐานข้อมูลของเว็บนี้) ผ่าน Webhook
@@ -344,7 +345,13 @@ sequenceDiagram
 
 ### 3.6 แอดมินจัดการข้อมูลและนำเข้าจาก Airtable
 
-**ล็อกอินแอดมิน:** `auth.js` → `backend/auth.php` (`action=login/logout/check`) เทียบกับ `ADMIN_USER`/`ADMIN_PASS` ใน env → ตั้ง `$_SESSION['is_admin']` (ผิดจะ `sleep(1)` กัน brute force) ทุก endpoint ของแอดมินเรียก `require_admin.php` ซึ่งตอบ 403 ถ้าไม่ได้ล็อกอิน
+**ล็อกอินแอดมิน / ผู้ดู:** `auth.js` → `backend/auth.php` (`action=login/logout/check`) เทียบกับ `ADMIN_USER`/`ADMIN_PASS` หรือ `VIEWER_USER`/`VIEWER_PASS` ใน env (`hash_equals`, ผิดจะ `sleep(1)` กัน brute force, เปลี่ยน session id หลังล็อกอิน) → ตั้ง `$_SESSION['role']` = `admin` หรือ `viewer`
+
+**สิทธิ์ 2 ระดับ (กันที่ server เป็นหลัก):**
+- ทุก endpoint หลังบ้านเรียก `require_admin.php` → ตอบ 403 ถ้าไม่ได้ล็อกอิน (รับทั้ง admin และ viewer)
+- `admin_api.php` มี `VIEWER_ACTIONS` = `list_courses`, `list_students`, `get_student`, `list_approval_requests`, `get_approval` — action อื่นทั้งหมดเรียก `require_full_admin()` (viewer ได้ 403 "บัญชีนี้มีสิทธิ์ดูข้อมูลอย่างเดียว") และ `active_courses.php` เป็นของแอดมินเท่านั้น
+- หน้าเว็บ: `auth.js` เก็บ role ใน `sessionStorage` (`admin_role`) ใส่ class `role-viewer` ที่ `<body>` → CSS ซ่อนทุกอย่างที่มี class `admin-write` (ปุ่มเพิ่ม/ลบ, เมนู Airtable, checkbox/ลบหลายรายการ, ส่งออก CSV, ตรวจสถานะ CAS, ปุ่มบันทึก) แสดงป้าย "โหมดดูอย่างเดียว" และ modal แก้ไขกลายเป็นดูอย่างเดียว (`openEditModal()`)
+- **เพิ่มปุ่ม/action ที่แก้ข้อมูลใหม่:** ใส่ class `admin-write` ที่ปุ่ม และ**อย่าใส่** action ใน `VIEWER_ACTIONS`
 
 **จัดการข้อมูล:** `admin.js` → `admin_api.php` (list/add/update/delete ของคอร์สและผู้เรียน, ค้นหา/กรอง/เรียงลำดับ/แบ่งหน้า — คอลัมน์ที่เรียงได้มี whitelist กัน SQL injection ผ่าน `ORDER BY`)
 
@@ -444,7 +451,7 @@ webcertificate/
 | ไฟล์ | หน้าที่ |
 |---|---|
 | `api.php` | สาธารณะ: คืนรายชื่อผู้เรียนทั้งหมดพร้อมคอร์สผ่าน `StudentRepository::listAllWithCourse()` |
-| `auth.php` | `action=login/logout/check` ตั้ง `$_SESSION['is_admin']` |
+| `auth.php` | `action=login/logout/check` ตั้ง `$_SESSION['role']` (`admin`/`viewer`); `check` ตอบ `is_admin` + `role` |
 | `admin_api.php` | แอดมินเท่านั้น (ผ่าน `require_admin.php`) ดูตาราง action ใน §7 |
 | `active_courses.php` | แอดมินเท่านั้น: `list`, `toggle`, `sync_jotform` (ส่งชื่อยาวของคอร์สที่เปิดไป JotForm API) — เก็บไว้เผื่ออนาคต |
 | `jotform_webhook.php` | สาธารณะ (JotForm เรียก): แกะ `rawRequest` ด้วย `JotformFields` → หา course → insert `students` |
@@ -459,7 +466,7 @@ webcertificate/
 | ไฟล์ | หน้าที่ |
 |---|---|
 | `load_env.php` | โหลด `.env` บนเครื่อง local (บน Render ข้าม) ทุก endpoint `require_once` ไว้บนสุด |
-| `require_admin.php` | middleware: เริ่ม session, ตั้ง header JSON, ตอบ 403 ถ้าไม่ใช่แอดมิน |
+| `require_admin.php` | middleware: เริ่ม session, ตั้ง header JSON, ตอบ 403 ถ้าไม่ได้ล็อกอิน; `admin_role()`, `require_full_admin()` สำหรับ action ที่แก้ข้อมูล |
 | `error_handler.php` | `send_error_response()` log รายละเอียดฝั่ง server แต่ส่งข้อความทั่วไปให้ client |
 | `AirtableClient.php` | ดึง records ทุกหน้าของ Airtable table ที่กำหนด |
 | `CourseRepository.php` | SQL ของ `courses`/`active_courses`: `listWithStudentCount`, `listWithActiveFlag`, `listActiveLongKeys`, `findByShortName`, `findByShortNameOrLongKey`, `add/update/delete`, `activate/deactivate` |
@@ -647,7 +654,8 @@ Base `appI37LT5wFrI4ITA` ใช้เป็นระบบเดิมของ�
 | ตัวแปร | จำเป็น | คำอธิบาย | ใช้ใน |
 |---|---|---|---|
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS` | ✅ | การเชื่อมต่อ Neon | `database/config.php` |
-| `ADMIN_USER`, `ADMIN_PASS` | ✅ | ล็อกอินแอดมิน | `backend/auth.php` |
+| `ADMIN_USER`, `ADMIN_PASS` | ✅ | ล็อกอินแอดมิน (เต็มสิทธิ์) | `backend/auth.php` |
+| `VIEWER_USER`, `VIEWER_PASS` | ไม่บังคับ | บัญชีดูอย่างเดียว (ไม่ตั้ง = ไม่มีบัญชีนี้) ต้องไม่ซ้ำกับแอดมิน | `backend/auth.php` |
 | `APP_URL` | ✅ | URL เว็บนี้ ไม่มี `/` ท้าย (ใช้ประกอบ redirect และ CallbackURL ของ CAS) | `user_session.php` |
 | `OAUTH_BASE_URI` | ✅ | `https://oauth.dhammakaya.network` | `DkcOAuth.php`, `CasClient.php` |
 | `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET` | ✅ | ได้จาก IT (Secret) | เหมือนข้างบน |
@@ -707,7 +715,7 @@ Base `appI37LT5wFrI4ITA` ใช้เป็นระบบเดิมของ�
 | ข้อมูลจาก URL (ชื่อ/คอร์ส/ประเภท) | แสดงด้วย `textContent`; ตัดความยาว; ส่งเข้าอีเมลหัวหน้ากองด้วย `htmlspecialchars` |
 | `ref` | สุ่มเดายาก (`random_bytes`); `approval_result.php` ตรวจ regex และไม่ส่งข้อมูลผู้สมัครกลับ |
 | ส่งซ้ำ | ตรวจ `ref` ใน Neon ก่อนเรียก CAS; ผู้ใช้อื่นใช้ `ref` เดียวกันไม่ได้ (`dup`) |
-| แอดมิน | session แยกจากผู้ใช้ DKC; ทุก endpoint แอดมินผ่าน `require_admin.php`; `ORDER BY` ใช้ whitelist |
+| แอดมิน / ผู้ดู | session แยกจากผู้ใช้ DKC; ทุก endpoint หลังบ้านผ่าน `require_admin.php`; ผู้ดูเรียกได้เฉพาะ `VIEWER_ACTIONS` (กันที่ server ไม่ใช่แค่ซ่อนปุ่ม); `ORDER BY` ใช้ whitelist |
 | ข้อผิดพลาด | `error_handler.php` log รายละเอียดที่ server เท่านั้น ไม่ส่งรายละเอียดฐานข้อมูลให้ client |
 | Redirect | `dkc_redirect*()` ใช้ path ของเว็บนี้เสมอ ไม่รับ URL จากผู้ใช้ (กัน open redirect); ปุ่ม "ลองส่งใหม่" ชี้ path ตายตัว |
 | Secrets | ใช้ env เท่านั้น ไม่มีรหัสในโค้ด |

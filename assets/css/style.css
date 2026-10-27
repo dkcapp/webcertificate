@@ -191,6 +191,33 @@ body {
   display: flex;
 }
 
+/* ===== บัญชีดูอย่างเดียว (role viewer) ===== */
+/* ซ่อนปุ่ม/เมนูที่เพิ่ม แก้ไข ลบ นำเข้า ส่งออก — ฝั่ง server ปฏิเสธ action เหล่านี้อีกชั้น */
+body.role-viewer .admin-write { display: none !important; }
+.viewer-only { display: none; }
+body.role-viewer .viewer-only { display: inline; }
+body.role-viewer #edit-modal-body input,
+body.role-viewer #edit-modal-body select {
+  background: var(--white);
+  border-color: var(--border);
+  box-shadow: none;
+  cursor: default;
+  opacity: 1;
+}
+.viewer-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  margin-right: 4px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 /* ===== แท็บคำขออนุมัติ ===== */
 .ap-title-actions {
   margin-left: auto;
