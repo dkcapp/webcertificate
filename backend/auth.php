@@ -16,6 +16,8 @@ define('VIEWER_PASS', getenv('VIEWER_PASS') ?: '');
 header('Content-Type: application/json; charset=utf-8');
 
 $action = isset($_POST['action']) ? $_POST['action'] : '';
+// check อ่านอย่างเดียว เปิดผ่าน GET ได้ (ไว้เช็กเวอร์ชัน PHP จากเบราว์เซอร์ ดู README §12)
+if ($action === '' && ($_GET['action'] ?? '') === 'check') $action = 'check';
 
 /** เทียบ user/pass แบบเวลาคงที่ (ค่าที่ตั้งไว้ว่าง = ไม่มีบัญชีนี้) */
 function credentials_match(string $user, string $pass, string $wantUser, string $wantPass): bool
@@ -70,7 +72,10 @@ if ($action === 'logout') {
 if ($action === 'check') {
     $role = current_role();
     // is_admin = เข้าหลังบ้านได้ (ทั้งแอดมินและผู้ดู) ส่วน role บอกว่าแก้ไขได้หรือไม่
-    echo json_encode(array('is_admin' => $role !== '', 'role' => $role));
+    $out = array('is_admin' => $role !== '', 'role' => $role);
+    // บอกเวอร์ชัน PHP เฉพาะแอดมิน (expose_php ปิดไว้ คนทั่วไปจึงไม่เห็นเวอร์ชัน)
+    if ($role === 'admin') $out['php_version'] = PHP_VERSION;
+    echo json_encode($out);
     exit;
 }
 

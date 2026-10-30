@@ -388,10 +388,10 @@ loadStudentsTable() → list_student_groups (คอร์ส + จำนวน�
 | Frontend | HTML + CSS + Vanilla JavaScript (แยกไฟล์ตามหน้าที่) | หน้าดาวน์โหลดใบประกาศ, Admin Panel, หน้า Thank you |
 | สร้างภาพใบประกาศ | [html2canvas](https://html2canvas.hertzen.com/) | แปลง HTML เป็น PNG ในเบราว์เซอร์ |
 | QR Code | [qrcodejs](https://github.com/davidshimjs/qrcodejs) | QR บนใบประกาศ |
-| Backend | PHP 8.2 (ไม่ใช้ framework, PDO ตรง ๆ, cURL) | API ทั้งหมด แบ่ง endpoint + repository |
+| Backend | PHP 8.4 (ไม่ใช้ framework, PDO ตรง ๆ, cURL) | API ทั้งหมด แบ่ง endpoint + repository |
 | Database | [Neon](https://neon.tech) PostgreSQL (Serverless) | ข้อมูลหลักสูตร ผู้เรียน และคำขออนุมัติ |
 | Hosting | [Render](https://render.com) Web Service แบบ Docker (แผนฟรี) | รันเว็บ PHP |
-| Container | Docker (`php:8.2-apache` + `pdo_pgsql`) | กำหนด environment |
+| Container | Docker (`php:8.4-apache` + `pdo_pgsql`) | กำหนด environment (PHP 8.4 ได้แพตช์ความปลอดภัยถึง 31 ธ.ค. 2028) |
 | รับสมัคร | JotForm (ฟอร์มบริษัท `231301336713444`) | ฟอร์มสมัคร + Webhook + Thank You redirect |
 | ระบบเดิมของบริษัท | Airtable (REST API) | เก็บข้อมูลสมัครเดิม + แหล่งนำเข้าย้อนหลัง |
 | ล็อกอิน | DKC OAuth (`oauth.dhammakaya.network`) | ยืนยันบัญชี AD ของผู้ขออนุมัติ |
@@ -405,6 +405,7 @@ loadStudentsTable() → list_student_groups (คอร์ส + จำนวน�
 ```
 webcertificate/
 │   Dockerfile
+│   .dockerignore             ไฟล์ที่ไม่เอาเข้า image (.env, .git ฯลฯ)
 │   index.html                หน้าแรก + Admin Panel (markup ล้วน)
 │   thankyou.php              ปลายทาง POST ของ JotForm → เก็บใบสรุปใน sessionStorage → thankyou.html
 │   thankyou.html             หน้า Thank you + ใบสรุป/PDF (ไฟล์เดียว มี CSS/JS ในตัว)
@@ -449,7 +450,9 @@ webcertificate/
 ### ราก / Frontend
 | ไฟล์ | หน้าที่ |
 |---|---|
-| `Dockerfile` | `php:8.2-apache` + `pdo_pgsql`, คัดลอกโค้ดเข้า `/var/www/html`, ให้ Apache ฟังพอร์ต `PORT` ที่ Render กำหนด |
+| `Dockerfile` | `php:8.4-apache` + `pdo_pgsql`, โหลด `docker/php-security.ini`, คัดลอกโค้ดเข้า `/var/www/html` (ลบโฟลเดอร์ `docker/` ออกจาก web root), ให้ Apache ฟังพอร์ต `PORT` ที่ Render กำหนด |
+| `docker/php-security.ini` | ตั้งค่า PHP: ปิด `session.upload_progress` (กัน CVE-2026-115560), `expose_php=Off` (ไม่บอกเวอร์ชัน PHP ใน header), `display_errors=Off` |
+| `.dockerignore` | ไม่คัดลอก `.env`, `.git`, README ฯลฯ เข้า image |
 | `index.html` | markup ของหน้าดาวน์โหลดใบประกาศ + Admin Panel (3 แท็บ: ดาวน์โหลด / จัดการข้อมูล / คำขออนุมัติ) ไม่มี CSS/JS ฝัง |
 | `thankyou.php` | รับ POST จาก JotForm → ใบสรุปลง sessionStorage → redirect ไป `thankyou.html` (GET → ส่งต่อพร้อม query เดิม) |
 | `thankyou.html` | หน้า Thank you ตามเงื่อนไขใน §3.3 + ใบสรุปข้อมูลการสมัคร (ดาวน์โหลด PDF / พิมพ์) |
@@ -730,7 +733,15 @@ Base `appI37LT5wFrI4ITA` ใช้เป็นระบบเดิมของ�
 | แอดมิน / ผู้ดู | session แยกจากผู้ใช้ DKC; ทุก endpoint หลังบ้านผ่าน `require_admin.php`; ผู้ดูเรียกได้เฉพาะ `VIEWER_ACTIONS` (กันที่ server ไม่ใช่แค่ซ่อนปุ่ม); `ORDER BY` ใช้ whitelist |
 | ข้อผิดพลาด | `error_handler.php` log รายละเอียดที่ server เท่านั้น ไม่ส่งรายละเอียดฐานข้อมูลให้ client |
 | Redirect | `dkc_redirect*()` ใช้ path ของเว็บนี้เสมอ ไม่รับ URL จากผู้ใช้ (กัน open redirect); ปุ่ม "ลองส่งใหม่" ชี้ path ตายตัว |
-| Secrets | ใช้ env เท่านั้น ไม่มีรหัสในโค้ด |
+| Secrets | ใช้ env เท่านั้น ไม่มีรหัสในโค้ด; `.dockerignore` กัน `.env` หลุดเข้า image |
+| เวอร์ชัน PHP | `php:8.4-apache` + `docker/php-security.ini` (ดูหัวข้อ "อัปเดตแพตช์ PHP" ด้านล่าง) |
+
+**อัปเดตแพตช์ PHP (ทำเมื่อมีข่าวช่องโหว่ PHP)**
+- แท็ก `php:8.4-apache` ดึงเวอร์ชันย่อยล่าสุด (เช่น 8.4.27 → 8.4.28) **เฉพาะตอน build** ถ้าไม่ deploy ใหม่ เวอร์ชันจะค้างอยู่ที่เดิม
+- เมื่อ PHP ออกแพตช์ความปลอดภัย: Render → service → **Manual Deploy → Clear build cache & deploy** แล้วรอสถานะ Live
+- เช็กเวอร์ชันที่รันจริง: ล็อกอินแอดมินบนเว็บ แล้วเปิด `https://comtrain-webcertificate.onrender.com/backend/auth.php?action=check` ในแท็บเดียวกัน จะเห็น `"php_version":"8.4.xx"` (แสดงเฉพาะแอดมิน เพราะ header `X-Powered-By` ถูกปิดไว้แล้ว)
+- ต.ค. 2569 มีช่องโหว่ PHP2Shell (CVE-2026-109618/109619 แก้ใน 8.4.27) และ CVE-2026-115560 (ยังไม่มีแพตช์ กันไว้แล้วด้วยการปิด `session.upload_progress`)
+- PHP 8.4 หมดแพตช์ 31 ธ.ค. 2028 ก่อนถึงวันนั้นให้เปลี่ยนบรรทัด `FROM` ใน `Dockerfile` เป็นเวอร์ชันใหม่ แล้วทดสอบในเครื่องก่อน push (ดู https://www.php.net/supported-versions.php)
 
 ---
 
@@ -819,6 +830,7 @@ Base `appI37LT5wFrI4ITA` ใช้เป็นระบบเดิมของ�
 6. **ปรับหน้า Thank you:** เป็นหน้า "ขอบคุณ" + QR กลุ่มไลน์ + ถามก่อนส่งคำขอ (ตกลง/ยกเลิก/ส่งภายหลัง) แสดงข้อมูลหัวหน้ากอง (ชื่อ อีเมล ตำแหน่ง สังกัด)
 7. **ปรับข้อความถึงหัวหน้ากอง:** เพิ่มบรรทัด "ระบบสมัครอบรมคอมพิวเตอร์", ตัดประเภทสมาชิกออก, เพิ่มโหมด HTML ที่เปิด/ปิดด้วย `CAS_MSG_HTML` (ทดสอบแล้ว CAS แสดงได้)
 8. **ตรวจความเป็นไปได้ของ PDF จาก JotForm:** สรุปว่าทำไม่ได้ตรง ๆ (ดู §14)
+9. **อัปเกรด PHP 8.2 → 8.4 (ต.ค. 2569):** หลังข่าว PHP2Shell และเพราะ PHP 8.2 หมดแพตช์สิ้นปี 2569 พร้อมเพิ่ม `docker/php-security.ini` และ `.dockerignore` (§12)
 
 ---
 

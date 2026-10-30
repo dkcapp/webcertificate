@@ -1,0 +1,9 @@
+# ไม่คัดลอกไฟล์เหล่านี้เข้า Docker image
+.git
+.env
+.vscode
+.idea
+*.log
+Dockerfile
+.dockerignore
+README.md
